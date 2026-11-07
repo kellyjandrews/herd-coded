@@ -79,7 +79,7 @@ jobs:
           BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           for i in $(seq 1 30); do
-            if curl -fsS -H "x-vercel-protection-bypass: $BYPASS" "$URL/api/health"; then exit 0; fi
+            if curl -fsS -H "x-vercel-protection-bypass: $BYPASS" "$URL/api/health" | grep -q '"status":"ok"'; then exit 0; fi
             sleep 5
           done
           echo "Preview never became healthy" && exit 1
@@ -100,6 +100,8 @@ jobs:
         env:
           BASE_URL: ${{ needs.deploy.outputs.url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          FACTORY_BASIC_AUTH_USERNAME: ${{ secrets.FACTORY_BASIC_AUTH_USERNAME }}
+          FACTORY_BASIC_AUTH_PASSWORD: ${{ secrets.FACTORY_BASIC_AUTH_PASSWORD }}
         run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()

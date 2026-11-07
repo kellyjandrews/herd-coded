@@ -4,6 +4,8 @@ import { defineConfig, devices } from "@playwright/test";
 // BASE_URL unset → start the local dev server.
 const baseURL = process.env.BASE_URL ?? "http://localhost:3000";
 const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+const basicAuthUsername = process.env.FACTORY_BASIC_AUTH_USERNAME;
+const basicAuthPassword = process.env.FACTORY_BASIC_AUTH_PASSWORD;
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -18,6 +20,11 @@ export default defineConfig({
     extraHTTPHeaders: bypass
       ? { "x-vercel-protection-bypass": bypass, "x-vercel-set-bypass-cookie": "true" }
       : undefined,
+    // Lets tests through the factory dashboard's Basic Auth.
+    httpCredentials:
+      basicAuthUsername && basicAuthPassword
+        ? { username: basicAuthUsername, password: basicAuthPassword }
+        : undefined,
   },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
