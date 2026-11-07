@@ -541,11 +541,14 @@ export default function FactoryDashboard() {
                                 aria-label="Feature details"
                                 required
                                 rows={4}
-                                maxLength={5000}
+                                maxLength={60000}
                                 placeholder="What should users be able to do? Include acceptance criteria."
                                 value={featureDetails}
                                 onChange={(event) => setFeatureDetails(event.target.value)}
                               />
+                              <p className="field-hint">
+                                Markdown is supported. Maximum 60,000 characters.
+                              </p>
                             </>
                           )}
                           <div className="create-actions">
