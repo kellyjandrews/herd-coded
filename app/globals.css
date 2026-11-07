@@ -598,6 +598,17 @@ textarea:focus {
 .feature-form .create-actions {
   margin-top: 0;
 }
+.feature-mode {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.feature-mode .button[aria-pressed="true"] {
+  border-color: currentColor;
+  font-weight: 600;
+}
 .feature-result {
   margin: 0;
   padding: 8px 12px;

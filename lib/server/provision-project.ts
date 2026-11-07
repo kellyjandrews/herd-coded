@@ -228,13 +228,8 @@ export interface FeatureIssue {
   url: string;
 }
 
-export async function createCopilotFeatureIssue(
-  repository: string,
-  title: string,
-  body: string,
-): Promise<FeatureIssue> {
+async function getFactoryRepository(repository: string, token: string): Promise<GitHubRepository> {
   const owner = requiredEnv("FACTORY_GITHUB_OWNER");
-  const token = requiredEnv("FACTORY_GITHUB_TOKEN");
   const [repoOwner, repoName] = repository.split("/");
   if (
     !repoOwner ||
@@ -251,6 +246,50 @@ export async function createCopilotFeatureIssue(
   if (!repo.topics?.includes("factory-app")) {
     throw new Error("Repository was not created by this factory.");
   }
+  return repo;
+}
+
+export async function createFeatureBatchIssue(
+  repository: string,
+  fileName: string,
+  csv: string,
+): Promise<FeatureIssue> {
+  const token = requiredEnv("FACTORY_GITHUB_TOKEN");
+  const repo = await getFactoryRepository(repository, token);
+  try {
+    await githubRequest(
+      `/repos/${repo.full_name}/contents/.github/workflows/feature-queue.yml`,
+      token,
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("GitHub API 404")) {
+      throw new Error("This project has no Feature queue workflow; it predates CSV batches.");
+    }
+    throw error;
+  }
+  // The repo's Feature queue workflow parses this block, creates the issues, and assigns Copilot.
+  const issue = await githubRequest<{ number: number; html_url: string }>(
+    `/repos/${repo.full_name}/issues`,
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        title: `[Feature batch]: ${fileName}`,
+        body: `\`\`\`csv\n${csv.trimEnd()}\n\`\`\`\n`,
+        labels: ["feature-batch"],
+      }),
+    },
+  );
+  return { number: issue.number, url: issue.html_url };
+}
+
+export async function createCopilotFeatureIssue(
+  repository: string,
+  title: string,
+  body: string,
+): Promise<FeatureIssue> {
+  const token = requiredEnv("FACTORY_GITHUB_TOKEN");
+  const repo = await getFactoryRepository(repository, token);
   const issue = await githubRequest<{ number: number; html_url: string }>(
     `/repos/${repo.full_name}/issues`,
     token,

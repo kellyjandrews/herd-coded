@@ -33,9 +33,11 @@ export default function FactoryDashboard() {
   const [featureRepo, setFeatureRepo] = useState<string | null>(null);
   const [featureTitle, setFeatureTitle] = useState("");
   const [featureDetails, setFeatureDetails] = useState("");
+  const [featureMode, setFeatureMode] = useState<"single" | "csv">("single");
+  const [csvFile, setCsvFile] = useState<File | null>(null);
   const [submittingFeature, setSubmittingFeature] = useState(false);
   const [featureResults, setFeatureResults] = useState<
-    Record<string, { number: number; url: string }>
+    Record<string, { number: number; url: string; batch?: boolean }>
   >({});
 
   useEffect(() => {
@@ -108,18 +110,19 @@ export default function FactoryDashboard() {
     setSubmittingFeature(true);
     setError("");
     try {
+      const payload =
+        featureMode === "csv" && csvFile
+          ? { repository, fileName: csvFile.name, csv: await csvFile.text() }
+          : { repository, title: featureTitle, details: featureDetails };
       const response = await fetch("/api/features", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          repository,
-          title: featureTitle,
-          details: featureDetails,
-        }),
+        body: JSON.stringify(payload),
       });
       const body = (await response.json()) as {
         issue?: { number: number; url: string };
+        batch?: boolean;
         error?: string;
       };
       const issue = body.issue;
@@ -127,10 +130,11 @@ export default function FactoryDashboard() {
         throw new Error(body.error ?? "Could not create the feature issue.");
       setFeatureResults((current) => ({
         ...current,
-        [repository]: issue,
+        [repository]: { ...issue, batch: body.batch },
       }));
       setFeatureTitle("");
       setFeatureDetails("");
+      setCsvFile(null);
       setFeatureRepo(null);
     } catch (featureError) {
       setError(
@@ -471,7 +475,9 @@ export default function FactoryDashboard() {
                       </div>
                       {featureResults[project.repository] && (
                         <p className="feature-result">
-                          Copilot is working on{" "}
+                          {featureResults[project.repository].batch
+                            ? "Queued feature batch "
+                            : "Copilot is working on "}
                           <a
                             href={featureResults[project.repository].url}
                             target="_blank"
@@ -479,7 +485,9 @@ export default function FactoryDashboard() {
                           >
                             issue #{featureResults[project.repository].number}
                           </a>
-                          . A pull request will appear in the repo.
+                          {featureResults[project.repository].batch
+                            ? ". The Feature queue workflow creates an issue per row and assigns Copilot one at a time."
+                            : ". A pull request will appear in the repo."}
                         </p>
                       )}
                       {featureRepo === project.repository ? (
@@ -487,23 +495,59 @@ export default function FactoryDashboard() {
                           className="feature-form"
                           onSubmit={(event) => void submitFeature(event, project.repository)}
                         >
-                          <input
-                            aria-label="Feature title"
-                            required
-                            maxLength={200}
-                            placeholder="Feature title"
-                            value={featureTitle}
-                            onChange={(event) => setFeatureTitle(event.target.value)}
-                          />
-                          <textarea
-                            aria-label="Feature details"
-                            required
-                            rows={4}
-                            maxLength={5000}
-                            placeholder="What should users be able to do? Include acceptance criteria."
-                            value={featureDetails}
-                            onChange={(event) => setFeatureDetails(event.target.value)}
-                          />
+                          <fieldset className="feature-mode" aria-label="Feature input">
+                            <button
+                              className="button button-secondary"
+                              type="button"
+                              aria-pressed={featureMode === "single"}
+                              onClick={() => setFeatureMode("single")}
+                            >
+                              Single feature
+                            </button>
+                            <button
+                              className="button button-secondary"
+                              type="button"
+                              aria-pressed={featureMode === "csv"}
+                              onClick={() => setFeatureMode("csv")}
+                            >
+                              CSV batch
+                            </button>
+                          </fieldset>
+                          {featureMode === "csv" ? (
+                            <>
+                              <input
+                                aria-label="Feature CSV file"
+                                type="file"
+                                accept=".csv,text/csv"
+                                required
+                                onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
+                              />
+                              <p className="field-hint">
+                                Header row: title,body,labels. Up to 50 rows. Requires the
+                                COPILOT_ASSIGN_TOKEN secret in the repo.
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <input
+                                aria-label="Feature title"
+                                required
+                                maxLength={200}
+                                placeholder="Feature title"
+                                value={featureTitle}
+                                onChange={(event) => setFeatureTitle(event.target.value)}
+                              />
+                              <textarea
+                                aria-label="Feature details"
+                                required
+                                rows={4}
+                                maxLength={5000}
+                                placeholder="What should users be able to do? Include acceptance criteria."
+                                value={featureDetails}
+                                onChange={(event) => setFeatureDetails(event.target.value)}
+                              />
+                            </>
+                          )}
                           <div className="create-actions">
                             <button
                               className="button button-secondary"
@@ -517,7 +561,11 @@ export default function FactoryDashboard() {
                               type="submit"
                               disabled={submittingFeature}
                             >
-                              {submittingFeature ? "Assigning…" : "Assign to Copilot"}
+                              {submittingFeature
+                                ? "Assigning…"
+                                : featureMode === "csv"
+                                  ? "Queue for Copilot"
+                                  : "Assign to Copilot"}
                             </button>
                           </div>
                         </form>
