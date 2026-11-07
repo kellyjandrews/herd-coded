@@ -1,0 +1,38 @@
+name: Confirmed bug
+description: Report incorrect product behavior with reproducible steps.
+title: "[Bug]: "
+labels: [factory, bug]
+body:
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment and release
+  - type: textarea
+    id: impact
+    attributes:
+      label: User impact
+  - type: checkboxes
+    id: sensitive_data
+    attributes:
+      label: Data handling
+      options:
+        - label: I checked that this report contains no secrets or personal data.
+          required: true

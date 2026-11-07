@@ -1,0 +1,41 @@
+name: Feature proposal
+description: Suggest a possible way to achieve an outcome; proposals are not approved work.
+title: "[Proposal]: "
+labels: [factory, proposal]
+body:
+  - type: input
+    id: outcome
+    attributes:
+      label: Parent outcome
+      description: Link the outcome issue or document this proposal supports.
+      placeholder: "Outcome issue #123"
+    validations:
+      required: true
+  - type: textarea
+    id: capability
+    attributes:
+      label: Proposed capability
+      description: Describe the user-visible change, not an implementation prescription.
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Expected impact and assumptions
+      description: Explain why this may improve the outcome and what remains uncertain.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Candidate acceptance criteria
+      placeholder: "Given ..., when ..., then ..."
+  - type: dropdown
+    id: status
+    attributes:
+      label: Proposal status
+      options:
+        - Suggested
+        - Needs discussion
+    validations:
+      required: true

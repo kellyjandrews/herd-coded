@@ -1,0 +1,29 @@
+name: Approved feature work
+description: Submit approved implementation work linked to a business outcome and proposal.
+title: "[Feature]: "
+labels: [factory, feature, approved]
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Parent outcome
+      description: Link the GitHub issue or outcome document and its success measure.
+      placeholder: "Outcome issue #123; improve successful onboarding from 40% to 65%."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Approved proposal
+      description: Link the proposal issue that was selected for implementation.
+      placeholder: "Proposal issue #456"
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Describe observable behavior that proves the outcome can improve.
+      placeholder: "Given ..., when ..., then ..."
+    validations:
+      required: true

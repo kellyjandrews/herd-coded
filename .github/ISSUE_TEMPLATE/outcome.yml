@@ -1,0 +1,36 @@
+name: Business outcome
+description: Define a measurable user or business result before choosing a solution.
+title: "[Outcome]: "
+labels: [factory, outcome]
+body:
+  - type: textarea
+    id: user
+    attributes:
+      label: Target user
+      description: Who should experience the improvement?
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Current problem
+      description: What is difficult or costly today?
+    validations:
+      required: true
+  - type: textarea
+    id: measure
+    attributes:
+      label: Success measure
+      description: Include a baseline and target when known, plus how it will be observed.
+      placeholder: "Baseline: ... Target: ... Measure: ..."
+    validations:
+      required: true
+  - type: input
+    id: horizon
+    attributes:
+      label: Time horizon
+      placeholder: "For example, by the end of the hackathon"
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and out of scope

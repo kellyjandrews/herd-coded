@@ -1,0 +1,40 @@
+name: Rollback production
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_url:
+        description: "Deployment URL to restore (blank = the previous production deployment)"
+        required: false
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+env:
+  VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Roll back
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          TARGET: ${{ inputs.deployment_url }}
+        run: |
+          if [ -z "$TARGET" ]; then
+            # index 0 is current production; index 1 is the one before it
+            TARGET=$(curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&target=production&state=READY&limit=2" \
+              | jq -r '.deployments[1].url // empty')
+            [ -z "$TARGET" ] && { echo "No previous production deployment found"; exit 1; }
+            TARGET="https://$TARGET"
+          fi
+          npx --yes vercel rollback "$TARGET" --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" --yes
+          echo "Rolled back to $TARGET" >> "$GITHUB_STEP_SUMMARY"

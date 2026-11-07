@@ -1,0 +1,86 @@
+name: Production
+
+# Merge to main → build → deploy to production → smoke test → auto-rollback on failure.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production
+  cancel-in-progress: false # never interrupt a production deploy
+
+permissions:
+  contents: read
+  deployments: write
+
+env:
+  VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+
+      - name: Remember the current production deployment (rollback target)
+        id: previous
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          url=$(curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&target=production&state=READY&limit=1" \
+            | jq -r '.deployments[0].url // empty')
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Run production migrations
+        if: hashFiles('drizzle.config.*', 'prisma/schema.prisma') != ''
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          if ls drizzle.config.* >/dev/null 2>&1; then npx drizzle-kit migrate; fi
+          if [ -f prisma/schema.prisma ]; then npx prisma migrate deploy; fi
+
+      - name: Build and deploy to production
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          npx vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          npx vercel build --prod --token="$VERCEL_TOKEN"
+          URL=$(npx vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN" --meta sha="$GITHUB_SHA")
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Production: $URL" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Smoke test production
+        env:
+          URL: ${{ vars.PRODUCTION_URL || steps.deploy.outputs.url }}
+          BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          for i in $(seq 1 20); do
+            body=$(curl -fsS -H "x-vercel-protection-bypass: $BYPASS" "$URL/api/health" || true)
+            if echo "$body" | grep -q "$GITHUB_SHA"; then echo "healthy: $body"; exit 0; fi
+            sleep 6
+          done
+          echo "Production smoke test failed" && exit 1
+
+      - name: Roll back on failure
+        if: failure() && steps.previous.outputs.url != '' && steps.deploy.outcome == 'success'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PREVIOUS: ${{ steps.previous.outputs.url }}
+        run: |
+          npx vercel rollback "https://$PREVIOUS" --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" --yes
+          echo "⚠️ Rolled back to $PREVIOUS" >> "$GITHUB_STEP_SUMMARY"

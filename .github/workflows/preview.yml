@@ -1,0 +1,142 @@
+name: Preview
+
+# One isolated dev instance per PR: its own Vercel deployment URL and, if Neon is
+# configured, its own database branch. E2E runs against the live preview.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  deployments: write
+
+env:
+  VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+  PR: ${{ github.event.pull_request.number }}
+
+jobs:
+  deploy:
+    # Secrets aren't available to fork PRs; skip instead of failing.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: preview
+      url: ${{ steps.deploy.outputs.url }}
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # ── Optional: database branch per PR (set NEON_PROJECT_ID var + NEON_API_KEY secret) ──
+      - name: Create Neon branch
+        id: db
+        if: vars.NEON_PROJECT_ID != ''
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch_name: preview/pr-${{ env.PR }}
+
+      - name: Run migrations on the PR database
+        if: steps.db.outputs.db_url != '' && hashFiles('drizzle.config.*', 'prisma/schema.prisma') != ''
+        env:
+          DATABASE_URL: ${{ steps.db.outputs.db_url }}
+        run: |
+          if ls drizzle.config.* >/dev/null 2>&1; then npx drizzle-kit migrate; fi
+          if [ -f prisma/schema.prisma ]; then npx prisma migrate deploy; fi
+
+      - name: Build and deploy preview
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DATABASE_URL: ${{ steps.db.outputs.db_url_pooled }}
+        run: |
+          npx vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
+          npx vercel build --token="$VERCEL_TOKEN"
+          EXTRA=()
+          if [ -n "$DATABASE_URL" ]; then EXTRA+=(--env "DATABASE_URL=$DATABASE_URL"); fi
+          URL=$(npx vercel deploy --prebuilt --token="$VERCEL_TOKEN" \
+                  --meta pr="$PR" --meta sha="$GITHUB_SHA" "${EXTRA[@]}")
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Preview: $URL" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Wait for health check
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+          BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS -H "x-vercel-protection-bypass: $BYPASS" "$URL/api/health"; then exit 0; fi
+            sleep 5
+          done
+          echo "Preview never became healthy" && exit 1
+
+  e2e:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Playwright against preview
+        env:
+          BASE_URL: ${{ needs.deploy.outputs.url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-pr-${{ env.PR }}
+          path: playwright-report/
+          retention-days: 7
+
+  comment:
+    needs: [deploy, e2e]
+    if: always() && needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post or update the preview comment
+        uses: actions/github-script@v7
+        env:
+          URL: ${{ needs.deploy.outputs.url }}
+          E2E: ${{ needs.e2e.result }}
+        with:
+          script: |
+            const marker = "<!-- factory-preview -->";
+            const icon = process.env.E2E === "success" ? "✅" : "❌";
+            const body = [
+              marker,
+              "### 🏭 Preview deployed",
+              "",
+              `| | |`,
+              `|---|---|`,
+              `| **URL** | ${process.env.URL} |`,
+              `| **Commit** | \`${context.sha.slice(0, 7)}\` |`,
+              `| **E2E** | ${icon} ${process.env.E2E} |`,
+              "",
+              "Run `/test <slug> <url>` in Copilot Chat to re-test against this preview.",
+            ].join("\n");
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((c) => c.body?.includes(marker));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });

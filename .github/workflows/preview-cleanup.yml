@@ -1,0 +1,38 @@
+name: Preview cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  cleanup:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete Neon branch
+        if: vars.NEON_PROJECT_ID != ''
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch: preview/pr-${{ github.event.pull_request.number }}
+
+      - name: Remove this PR's Vercel preview deployments
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          TEAM: ${{ vars.VERCEL_ORG_ID }}
+          PROJECT: ${{ vars.VERCEL_PROJECT_ID }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # Deployments are tagged with --meta pr=<n> in preview.yml.
+          ids=$(curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v6/deployments?projectId=$PROJECT&teamId=$TEAM&target=preview&limit=100" \
+            | jq -r --arg pr "$PR" '.deployments[] | select(.meta.pr == $pr) | .uid')
+          for id in $ids; do
+            curl -fsS -X DELETE -H "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v13/deployments/$id?teamId=$TEAM" >/dev/null && echo "removed $id"
+          done

@@ -1,0 +1,38 @@
+name: Incident or bug
+description: Report a runtime failure for triage and follow-up.
+title: "[Incident]: "
+labels: [factory, incident]
+body:
+  - type: input
+    id: environment
+    attributes:
+      label: Environment and release
+      placeholder: "Preview or production; deployment SHA if available"
+    validations:
+      required: true
+  - type: input
+    id: route
+    attributes:
+      label: Affected route or operation
+  - type: textarea
+    id: impact
+    attributes:
+      label: User impact and frequency
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+  - type: textarea
+    id: error
+    attributes:
+      label: Sanitized error details
+      description: Remove secrets, tokens, personal data, cookies, and request bodies before submitting.
+  - type: checkboxes
+    id: sensitive_data
+    attributes:
+      label: Data handling
+      options:
+        - label: I checked that this report contains no secrets or personal data.
+          required: true

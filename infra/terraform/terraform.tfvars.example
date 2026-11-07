@@ -1,0 +1,23 @@
+# Copy to terraform.tfvars (git-ignored) and fill in. bootstrap.sh does this for you.
+
+project_name   = "my-hackathon-poc"
+vercel_team_id = "team_xxxxxxxxxxxxxxxx"
+github_owner   = "your-github-user-or-org"
+github_repo    = "my-hackathon-poc"
+
+# Secret — or export TF_VAR_vercel_api_token instead
+vercel_api_token = ""
+
+# Optional
+custom_domain      = ""
+preview_protection = true # set false so judges can open preview links without a Vercel login
+
+# Optional: Postgres branch per PR (Neon free tier)
+neon_project_id         = ""
+neon_api_key            = ""
+production_database_url = ""
+
+# App env vars the builder agent adds as features need them
+app_env_vars = {
+  # NEXT_PUBLIC_APP_NAME = { value = "My POC", targets = ["production", "preview", "development"], sensitive = false }
+}
