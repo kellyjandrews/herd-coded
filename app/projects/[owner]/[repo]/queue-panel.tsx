@@ -206,7 +206,18 @@ export default function QueuePanel({
         </ol>
       )}
 
-      <form className="feature-form queue-form" onSubmit={(event) => void addFeature(event)}>
+      <form
+        className="feature-form queue-form"
+        id="new-feature"
+        aria-labelledby="new-feature-title"
+        onSubmit={(event) => void addFeature(event)}
+      >
+        <div>
+          <h3 id="new-feature-title">Create a feature request</h3>
+          <p className="field-hint">
+            Describe what you need. You can review and approve the request before Copilot starts.
+          </p>
+        </div>
         <input
           aria-label="New feature title"
           required
