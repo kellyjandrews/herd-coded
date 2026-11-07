@@ -11,5 +11,6 @@ One line each: `YYYY-MM-DD — decision — why`
 - 2026-11-07 — Vercel owns app runtime environment values while GitHub owns Actions secrets and variables — GitHub Actions deploy through the Vercel CLI and cannot read Vercel's project environment store.
 - 2026-11-07 — Error triage starts as user-triggered incident drafting — automatic ingestion and issue creation wait for a selected telemetry provider and authenticated integration.
 - 2026-11-07 — Default bootstrap uses Vercel CLI and GitHub CLI instead of Terraform — app secrets stay in Vercel and workflow credentials are configured at their point of use.
+- 2026-11-07 — Generated apps queue CSV feature batches and assign Copilot one issue at a time via a PAT secret — sequential PRs avoid merge conflicts, and the Actions GITHUB_TOKEN cannot assign the Copilot agent.
 - 2026-10-30 — Specs in `specs/<slug>/` are the hand-off between agents — any agent or human can resume a feature from files.
 - 2026-10-30 — Neon branch per PR (optional) — each preview gets its own database, so demos never share or corrupt data.

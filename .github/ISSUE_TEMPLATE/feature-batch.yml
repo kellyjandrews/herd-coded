@@ -1,0 +1,18 @@
+name: Feature batch (CSV)
+description: Attach a CSV of features. Each row becomes a feature issue that Copilot builds one at a time.
+title: "[Feature batch]: "
+labels: [feature-batch]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The first row must be a header using GitHub issue fields: title, body, labels.
+        title is required. body is Markdown. labels is optional and comma-separated (quote the cell).
+        Up to 50 rows per batch.
+  - type: textarea
+    id: csv
+    attributes:
+      label: CSV file
+      description: Drag and drop a .csv file here.
+    validations:
+      required: true

@@ -171,6 +171,7 @@ jobs:
     needs: import
     if: >-
       always() && (needs.import.result == 'success' || github.event_name == 'workflow_dispatch' ||
+      (github.event.action == 'labeled' && github.event.label.name == 'feature-queue') ||
       (github.event.action == 'closed' && contains(github.event.issue.labels.*.name, 'feature-queue')))
     runs-on: ubuntu-latest
     concurrency:
