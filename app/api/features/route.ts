@@ -1,5 +1,6 @@
 import { factoryRequestAuthorized, unauthorizedFactoryResponse } from "@/lib/server/factory-auth";
 import { createCopilotFeatureIssue, createFeatureBatchIssue } from "@/lib/server/provision-project";
+import { crossOriginResponse } from "@/lib/server/request-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,10 +9,8 @@ export async function POST(request: Request) {
   if (!factoryRequestAuthorized(request.headers.get("authorization"))) {
     return unauthorizedFactoryResponse();
   }
-  const origin = request.headers.get("origin");
-  if (!origin || new URL(origin).origin !== new URL(request.url).origin) {
-    return Response.json({ error: "Cross-origin requests are not allowed." }, { status: 403 });
-  }
+  const originResponse = crossOriginResponse(request);
+  if (originResponse) return originResponse;
 
   let body: Record<string, unknown>;
   try {

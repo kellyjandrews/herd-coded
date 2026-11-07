@@ -19,3 +19,4 @@ infra/terraform/terraform.tfvars
 infra/terraform/.terraform.lock.hcl.bak
 .vercel
 .env*
+!.env.example

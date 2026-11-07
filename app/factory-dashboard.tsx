@@ -15,13 +15,23 @@ type FactoryProject = {
 
 type ProjectsResponse = {
   configured?: boolean;
+  owner?: string;
   projects?: FactoryProject[];
   error?: string;
 };
 
+const requiredSettings = [
+  "FACTORY_BASIC_AUTH_USERNAME",
+  "FACTORY_BASIC_AUTH_PASSWORD",
+  "FACTORY_GITHUB_OWNER",
+  "FACTORY_GITHUB_TOKEN",
+  "VERCEL_ACCESS_TOKEN",
+];
+
 export default function FactoryDashboard() {
   const [projects, setProjects] = useState<FactoryProject[]>([]);
   const [configured, setConfigured] = useState<boolean | null>(null);
+  const [owner, setOwner] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -52,6 +62,7 @@ export default function FactoryDashboard() {
           signal,
         });
         const body = (await response.json()) as ProjectsResponse;
+        setOwner(body.owner ?? null);
         if (!response.ok) throw new Error(body.error ?? "Could not load projects.");
         setConfigured(Boolean(body.configured));
         setProjects(body.projects ?? []);
@@ -167,13 +178,10 @@ export default function FactoryDashboard() {
           </span>
         </a>
         <div className="workspace-switcher">
-          <span className="workspace-avatar">K</span>
+          <span className="workspace-avatar">{(owner ?? "F").slice(0, 1).toUpperCase()}</span>
           <span className="workspace-copy">
-            <strong>Kelly's workspace</strong>
-            <small>Personal</small>
-          </span>
-          <span className="switcher-caret" aria-hidden="true">
-            ⌄
+            <strong>{owner ?? "Factory workspace"}</strong>
+            <small>GitHub owner</small>
           </span>
         </div>
         <nav className="side-nav" aria-label="Main navigation">
@@ -191,24 +199,24 @@ export default function FactoryDashboard() {
             Remote builds
           </a>
           <p className="nav-label nav-label-spaced">FACTORY</p>
-          <a className="nav-item" href="#how-it-works">
-            <span className="nav-icon" aria-hidden="true">
-              ⌘
-            </span>{" "}
-            Templates
-          </a>
           <a className="nav-item" href="#settings">
             <span className="nav-icon" aria-hidden="true">
               ⚙
             </span>{" "}
-            Settings
+            Setup
           </a>
         </nav>
-        <div className="sidebar-footer">
-          <span className="connection-dot" />
-          <span>GitHub connected</span>
+        <div className="sidebar-footer" data-testid="connection-status">
+          <span className={`connection-dot ${configured === true ? "" : "connection-dot-off"}`} />
+          <span>
+            {configured === null
+              ? "Checking GitHub…"
+              : configured
+                ? "GitHub connected"
+                : "GitHub not configured"}
+          </span>
           <span className="connection-spacer" />
-          <span className="connection-check">✓</span>
+          {configured && <span className="connection-check">✓</span>}
         </div>
       </aside>
 
@@ -223,9 +231,9 @@ export default function FactoryDashboard() {
             <span className="auth-badge">
               <span className="auth-indicator" /> Private workspace
             </span>
-            <button className="avatar-button" type="button" aria-label="Signed in as Kelly">
-              K
-            </button>
+            <span className="avatar-button" title={owner ?? undefined} aria-hidden="true">
+              {(owner ?? "F").slice(0, 1).toUpperCase()}
+            </span>
           </div>
         </header>
 
@@ -615,6 +623,26 @@ export default function FactoryDashboard() {
             >
               How it works <span aria-hidden="true">↗</span>
             </a>
+          </section>
+          <section className="remote-section" id="settings" aria-labelledby="setup-title">
+            <div className="remote-icon" aria-hidden="true">
+              ⚙
+            </div>
+            <div>
+              <h2 id="setup-title">Setup</h2>
+              <p>
+                Set these environment variables in the factory's Vercel project settings (or
+                <code> .env.local</code> for local development). <code>VERCEL_TEAM_ID</code> is
+                optional for personal Vercel accounts.
+              </p>
+              <ul className="setup-list">
+                {requiredSettings.map((setting) => (
+                  <li key={setting}>
+                    <code>{setting}</code>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </section>
           <footer className="page-footer">
             <span>

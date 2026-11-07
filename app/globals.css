@@ -93,9 +93,6 @@ textarea {
   color: var(--muted);
   font-size: 11px;
 }
-.switcher-caret {
-  color: var(--muted);
-}
 .side-nav {
   display: flex;
   flex-direction: column;
@@ -151,6 +148,9 @@ textarea {
   border-radius: 50%;
   background: #2f9e6b;
 }
+.connection-dot-off {
+  background: var(--muted);
+}
 .connection-spacer {
   flex: 1;
 }
@@ -200,6 +200,8 @@ textarea {
   background: var(--accent);
 }
 .avatar-button {
+  display: grid;
+  place-items: center;
   width: 30px;
   height: 30px;
   border: 0;
@@ -637,6 +639,15 @@ textarea:focus {
   margin-left: auto;
   white-space: nowrap;
   font-size: 13px;
+}
+.setup-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
 }
 .remote-icon {
   display: grid;
