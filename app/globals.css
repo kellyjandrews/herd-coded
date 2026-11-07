@@ -591,6 +591,9 @@ textarea:focus {
 .project-links a {
   text-decoration: none;
 }
+.not-deployed {
+  color: var(--muted);
+}
 .feature-form {
   display: flex;
   flex-direction: column;

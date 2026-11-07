@@ -6,7 +6,11 @@ import { checkStatusFromRollup, deriveFeatureState } from "@/lib/server/feature-
 import { sealSecret } from "@/lib/server/repo-secrets";
 import { productionUrlFor, summarizeDeployments } from "@/lib/server/vercel";
 
-const open = { state: "OPEN" as const, queued: false, assignedToCopilot: false };
+const open = {
+  state: "OPEN" as const,
+  queued: false,
+  assignedToCopilot: false,
+};
 
 describe("deriveFeatureState", () => {
   it.each([
@@ -44,22 +48,81 @@ describe("Vercel deployment summary", () => {
   const project = {
     id: "prj_1",
     name: "app",
-    targets: { production: { alias: ["app-git-main-team.vercel.app", "app.vercel.app"] } },
+    targets: {
+      production: { alias: ["app-git-main-team.vercel.app", "app.vercel.app"] },
+    },
   };
 
   it("prefers a project domain over git aliases", () => {
     expect(productionUrlFor(project)).toBe("https://app.vercel.app");
-    expect(productionUrlFor({ id: "x", name: "bare" })).toBe("https://bare.vercel.app");
+  });
+
+  it("uses the alias Vercel assigned when <name>.vercel.app was taken", () => {
+    const taken = {
+      id: "prj_2",
+      name: "clinic-helper",
+      targets: {
+        production: {
+          alias: ["clinic-helper-one.vercel.app", "clinic-helper-git-main-herd-coded.vercel.app"],
+        },
+      },
+    };
+    expect(productionUrlFor(taken)).toBe("https://clinic-helper-one.vercel.app");
+  });
+
+  it("falls back to the production deployment URL, never a guessed name", () => {
+    expect(
+      productionUrlFor({
+        id: "x",
+        name: "bare",
+        targets: {
+          production: { alias: [], url: "bare-abc123-team.vercel.app" },
+        },
+      }),
+    ).toBe("https://bare-abc123-team.vercel.app");
+    expect(productionUrlFor({ id: "x", name: "bare" })).toBeUndefined();
+    expect(
+      productionUrlFor({
+        id: "x",
+        name: "bare",
+        targets: { production: { alias: ["bare-git-main-team.vercel.app"] } },
+      }),
+    ).toBeUndefined();
   });
 
   it("picks the latest production deployment and one preview per PR", () => {
     const summary = summarizeDeployments(project, [
-      { uid: "1", url: "app-pr8b.vercel.app", state: "BUILDING", meta: { githubPrId: "8" } },
-      { uid: "2", url: "app-prod2.vercel.app", state: "READY", target: "production", created: 2 },
-      { uid: "3", url: "app-pr8a.vercel.app", state: "READY", meta: { githubPrId: "8" } },
-      { uid: "4", url: "app-prod1.vercel.app", state: "ERROR", target: "production", created: 1 },
+      {
+        uid: "1",
+        url: "app-pr8b.vercel.app",
+        state: "BUILDING",
+        meta: { githubPrId: "8" },
+      },
+      {
+        uid: "2",
+        url: "app-prod2.vercel.app",
+        state: "READY",
+        target: "production",
+        created: 2,
+      },
+      {
+        uid: "3",
+        url: "app-pr8a.vercel.app",
+        state: "READY",
+        meta: { githubPrId: "8" },
+      },
+      {
+        uid: "4",
+        url: "app-prod1.vercel.app",
+        state: "ERROR",
+        target: "production",
+        created: 1,
+      },
     ]);
-    expect(summary.production).toMatchObject({ url: "https://app.vercel.app", state: "READY" });
+    expect(summary.production).toMatchObject({
+      url: "https://app.vercel.app",
+      state: "READY",
+    });
     expect(summary.previews.get(8)).toEqual({
       url: "https://app-pr8b.vercel.app",
       state: "BUILDING",

@@ -9,11 +9,17 @@ function mockFetch(routes: Array<[RegExp, number, unknown?]>) {
     "fetch",
     vi.fn(async (url: string, init: RequestInit = {}) => {
       const method = init.method ?? "GET";
-      calls.push({ method, url, body: init.body ? JSON.parse(String(init.body)) : undefined });
+      calls.push({
+        method,
+        url,
+        body: init.body ? JSON.parse(String(init.body)) : undefined,
+      });
       const match = routes.find(([pattern]) => pattern.test(`${method} ${url}`));
       if (!match) throw new Error(`Unexpected request: ${method} ${url}`);
       const [, status, body] = match;
-      return new Response(status === 204 ? null : JSON.stringify(body ?? {}), { status });
+      return new Response(status === 204 ? null : JSON.stringify(body ?? {}), {
+        status,
+      });
     }),
   );
   return calls;
@@ -55,13 +61,20 @@ describe("provisionProject", () => {
       [
         /GET .*api\.vercel\.com\/v9\/projects\/app/,
         200,
-        { id: "prj", name: "app", targets: { production: { alias: ["app-acme.vercel.app"] } } },
+        {
+          id: "prj",
+          name: "app",
+          targets: { production: { alias: ["app-acme.vercel.app"] } },
+        },
       ],
       [/GET .*\/actions\/secrets\/public-key$/, 200, { key_id: "k1", key: `${"A".repeat(43)}=` }],
       [/PUT .*\/actions\/secrets\/COPILOT_ASSIGN_TOKEN$/, 201, {}],
     ]);
 
-    const project = await provisionProject({ name: "app", visibility: "private" });
+    const project = await provisionProject({
+      name: "app",
+      visibility: "private",
+    });
 
     expect(project).toMatchObject({
       repository: "acme/app",
@@ -72,7 +85,10 @@ describe("provisionProject", () => {
     expect(calls.some((call) => call.url.includes("/git/trees"))).toBe(false);
     expect(calls.some((call) => call.url.includes("/v11/projects"))).toBe(false);
     const secret = calls.find((call) => call.url.endsWith("/COPILOT_ASSIGN_TOKEN"));
-    expect(secret?.body).toMatchObject({ key_id: "k1", encrypted_value: expect.any(String) });
+    expect(secret?.body).toMatchObject({
+      key_id: "k1",
+      encrypted_value: expect.any(String),
+    });
     expect(JSON.stringify(secret?.body)).not.toContain("gh-token");
   });
 

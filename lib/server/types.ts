@@ -5,7 +5,7 @@ export interface FactoryProject {
   httpsCloneUrl: string;
   sshCloneUrl: string;
   cloneCommand: string;
-  productionUrl: string;
+  productionUrl?: string;
   createdAt?: string;
   visibility?: "private" | "public";
   repairSteps?: RepairStep[];

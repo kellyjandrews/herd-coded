@@ -70,7 +70,11 @@ export async function submitFeature(
   if (await repositoryFileExists(repo.full_name, queueWorkflowPath, token)) {
     const issue = await githubRequest<GitHubIssue>(`/repos/${repo.full_name}/issues`, token, {
       method: "POST",
-      body: JSON.stringify({ title, body, labels: ["feature", "feature-queue"] }),
+      body: JSON.stringify({
+        title,
+        body,
+        labels: ["feature", "feature-queue"],
+      }),
     });
     await dispatchQueue(repo, token);
     const queued = await listQueuedIssues(repo, token);
