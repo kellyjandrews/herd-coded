@@ -10,7 +10,7 @@ type FactoryProject = {
   httpsCloneUrl: string;
   sshCloneUrl: string;
   cloneCommand: string;
-  productionUrl: string;
+  productionUrl?: string;
   createdAt?: string;
   visibility?: "private" | "public";
   repairSteps?: string[];
@@ -55,7 +55,13 @@ export default function FactoryDashboard() {
   const [featureResults, setFeatureResults] = useState<
     Record<
       string,
-      { number: number; url: string; batch?: boolean; queued?: boolean; position?: number }
+      {
+        number: number;
+        url: string;
+        batch?: boolean;
+        queued?: boolean;
+        position?: number;
+      }
     >
   >({});
 
@@ -153,7 +159,12 @@ export default function FactoryDashboard() {
         throw new Error(body.error ?? "Could not create the feature issue.");
       setFeatureResults((current) => ({
         ...current,
-        [repository]: { ...issue, batch: body.batch, queued: body.queued, position: body.position },
+        [repository]: {
+          ...issue,
+          batch: body.batch,
+          queued: body.queued,
+          position: body.position,
+        },
       }));
       setFeatureTitle("");
       setFeatureDetails("");
@@ -180,7 +191,10 @@ export default function FactoryDashboard() {
         headers: { "Content-Type": "application/json" },
         body: "{}",
       });
-      const body = (await response.json()) as { project?: FactoryProject; error?: string };
+      const body = (await response.json()) as {
+        project?: FactoryProject;
+        error?: string;
+      };
       if (!response.ok || !body.project) throw new Error(body.error ?? "Repair failed.");
       const repaired = body.project;
       setProjects((current) =>
@@ -664,9 +678,15 @@ export default function FactoryDashboard() {
                       <a href={project.repositoryUrl} target="_blank" rel="noreferrer">
                         Repository <span aria-hidden="true">↗</span>
                       </a>
-                      <a href={project.productionUrl} target="_blank" rel="noreferrer">
-                        Production <span aria-hidden="true">↗</span>
-                      </a>
+                      {project.productionUrl ? (
+                        <a href={project.productionUrl} target="_blank" rel="noreferrer">
+                          Production <span aria-hidden="true">↗</span>
+                        </a>
+                      ) : (
+                        <span className="not-deployed" data-testid="not-deployed">
+                          Not deployed yet
+                        </span>
+                      )}
                       {project.repairSteps && project.repairSteps.length > 0 && (
                         <button
                           className="button button-secondary"

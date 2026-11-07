@@ -66,9 +66,14 @@ export async function githubRequest<T>(
   });
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { message?: string } | null;
+    const body = (await response.json().catch(() => null)) as {
+      message?: string;
+    } | null;
+    // Fine-grained PATs report the missing permission here, e.g. "actions_variables=read".
+    const needed = response.headers.get("x-accepted-github-permissions");
+    const hint = needed ? ` (FACTORY_GITHUB_TOKEN needs ${needed} on this repository)` : "";
     throw new GitHubError(
-      `GitHub API ${response.status}: ${body?.message ?? response.statusText}`,
+      `GitHub API ${response.status}: ${body?.message ?? response.statusText}${hint}`,
       response.status,
     );
   }
@@ -81,11 +86,13 @@ export async function githubGraphql<T>(
   variables: Record<string, unknown>,
   token: string,
 ): Promise<T> {
-  const body = await githubRequest<{ data?: T; errors?: Array<{ message: string }> }>(
-    "/graphql",
-    token,
-    { method: "POST", body: JSON.stringify({ query, variables }) },
-  );
+  const body = await githubRequest<{
+    data?: T;
+    errors?: Array<{ message: string }>;
+  }>("/graphql", token, {
+    method: "POST",
+    body: JSON.stringify({ query, variables }),
+  });
   if (body.errors?.length || !body.data) {
     throw new Error(`GitHub GraphQL: ${body.errors?.[0]?.message ?? "empty response"}`);
   }
@@ -94,7 +101,10 @@ export async function githubGraphql<T>(
 
 export class UnknownRepositoryError extends Error {}
 
-export function parseFactoryRepository(repository: string): { owner: string; name: string } {
+export function parseFactoryRepository(repository: string): {
+  owner: string;
+  name: string;
+} {
   const owner = requiredEnv("FACTORY_GITHUB_OWNER");
   const [repoOwner, repoName, ...rest] = repository.split("/");
   if (
@@ -137,7 +147,7 @@ export function toFactoryProject(repo: GitHubRepository, productionUrl?: string)
     httpsCloneUrl: repo.clone_url,
     sshCloneUrl: repo.ssh_url,
     cloneCommand: `gh repo clone ${repo.full_name}`,
-    productionUrl: productionUrl ?? `https://${repo.name}.vercel.app`,
+    productionUrl,
     createdAt: repo.created_at,
     visibility: repo.private ? "private" : "public",
   };

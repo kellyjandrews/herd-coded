@@ -163,7 +163,7 @@ async function ensureLabels(repo: GitHubRepository, token: string): Promise<void
   }
 }
 
-async function ensureVercelProject(repo: GitHubRepository): Promise<string> {
+async function ensureVercelProject(repo: GitHubRepository): Promise<string | undefined> {
   const existing = await findVercelProject(repo.name);
   if (existing) return productionUrlFor(existing);
 
@@ -188,7 +188,8 @@ async function ensureVercelProject(repo: GitHubRepository): Promise<string> {
       gitSource: { type: "github", repoId: repo.id, ref: repo.default_branch },
     },
   });
-  return `https://${project.name}.vercel.app`;
+  // Vercel assigns the production alias once this deployment succeeds; the dashboard reads it then.
+  return undefined;
 }
 
 async function ensureSecret(repo: GitHubRepository, token: string): Promise<void> {

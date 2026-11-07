@@ -62,7 +62,9 @@ interface FeatureQueryResult {
             state: "OPEN" | "CLOSED" | "MERGED";
             isDraft: boolean;
             commits: {
-              nodes: Array<{ commit: { statusCheckRollup: { state: string } | null } }>;
+              nodes: Array<{
+                commit: { statusCheckRollup: { state: string } | null };
+              }>;
             };
           }>;
         };
@@ -130,10 +132,13 @@ export async function getProjectActivity(
   if (usingMocks()) {
     const project = mockGetProject(repository);
     if (!project) return null;
+    const production = mockProduction(repository);
     return {
       project,
       features: { ok: true, data: mockFeatures(repository) },
-      production: { ok: true, data: mockProduction(repository) },
+      production: production
+        ? { ok: true, data: production }
+        : { ok: false, error: "No production deployment yet." },
       queue: { ok: true, data: mockQueue(repository) },
     };
   }

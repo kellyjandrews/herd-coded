@@ -19,7 +19,10 @@ export default defineConfig({
     screenshot: "only-on-failure",
     // Lets CI through Vercel Deployment Protection on previews.
     extraHTTPHeaders: bypass
-      ? { "x-vercel-protection-bypass": bypass, "x-vercel-set-bypass-cookie": "true" }
+      ? {
+          "x-vercel-protection-bypass": bypass,
+          "x-vercel-set-bypass-cookie": "true",
+        }
       : undefined,
     // Lets tests through the factory dashboard's Basic Auth.
     httpCredentials:

@@ -30,7 +30,7 @@ interface MockFeature {
 interface MockRepo {
   project: FactoryProject;
   features: MockFeature[];
-  production: ProductionStatus;
+  production?: ProductionStatus;
   paused: boolean;
   queueEnabled: boolean;
   nextNumber: number;
@@ -40,7 +40,11 @@ type MockStore = Map<string, MockRepo>;
 
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
 
-function mockProject(name: string, visibility: "private" | "public" = "private"): FactoryProject {
+function mockProject(
+  name: string,
+  visibility: "private" | "public" = "private",
+  productionUrl?: string,
+): FactoryProject {
   const repository = `${mockOwner}/${name}`;
   return {
     name,
@@ -49,7 +53,7 @@ function mockProject(name: string, visibility: "private" | "public" = "private")
     httpsCloneUrl: `https://github.com/${repository}.git`,
     sshCloneUrl: `git@github.com:${repository}.git`,
     cloneCommand: `gh repo clone ${repository}`,
-    productionUrl: `https://${name}.vercel.app`,
+    productionUrl,
     createdAt: hoursAgo(72),
     visibility,
   };
@@ -57,10 +61,12 @@ function mockProject(name: string, visibility: "private" | "public" = "private")
 
 function seed(): MockStore {
   const store: MockStore = new Map();
+  // Suffixed alias: what Vercel assigns when recipe-box.vercel.app belongs to someone else.
+  const recipeBoxUrl = `https://recipe-box-${mockOwner}.vercel.app`;
   store.set(`${mockOwner}/recipe-box`, {
-    project: mockProject("recipe-box", "public"),
+    project: mockProject("recipe-box", "public", recipeBoxUrl),
     production: {
-      url: "https://recipe-box.vercel.app",
+      url: recipeBoxUrl,
       state: "READY",
       sha: "4f9c2ab1d3e0",
       createdAt: hoursAgo(2),
@@ -135,7 +141,10 @@ function seed(): MockStore {
     ],
   });
   store.set(`${mockOwner}/trail-tracker`, {
-    project: { ...mockProject("trail-tracker"), repairSteps: ["workflow", "secret"] },
+    project: {
+      ...mockProject("trail-tracker", "private", "https://trail-tracker.vercel.app"),
+      repairSteps: ["workflow", "secret"],
+    },
     production: {
       url: "https://trail-tracker.vercel.app",
       state: "ERROR",
@@ -164,11 +173,20 @@ function seed(): MockStore {
       },
     ],
   });
+  store.set(`${mockOwner}/pet-sitter`, {
+    project: { ...mockProject("pet-sitter"), createdAt: hoursAgo(0) },
+    paused: false,
+    queueEnabled: true,
+    nextNumber: 1,
+    features: [],
+  });
   return store;
 }
 
 // Route handlers and pages can load separate module instances in dev; share one store per process.
-const globalStore = globalThis as typeof globalThis & { __factoryMockStore?: MockStore };
+const globalStore = globalThis as typeof globalThis & {
+  __factoryMockStore?: MockStore;
+};
 
 function store(): MockStore {
   globalStore.__factoryMockStore ??= seed();
@@ -197,10 +215,12 @@ export function mockCreateProject(input: CreateProjectInput): FactoryProject {
   const repository = `${mockOwner}/${input.name}`;
   if (store().has(repository))
     throw new Error("GitHub API 422: name already exists on this account");
-  const project = { ...mockProject(input.name, input.visibility), createdAt: hoursAgo(0) };
+  const project = {
+    ...mockProject(input.name, input.visibility),
+    createdAt: hoursAgo(0),
+  };
   store().set(repository, {
     project,
-    production: { url: project.productionUrl, state: "BUILDING", createdAt: hoursAgo(0) },
     paused: false,
     queueEnabled: true,
     nextNumber: 1,
@@ -249,7 +269,7 @@ export function mockFeatures(repository: string): FeatureItem[] {
     }));
 }
 
-export function mockProduction(repository: string): ProductionStatus {
+export function mockProduction(repository: string): ProductionStatus | undefined {
   return repoFor(repository).production;
 }
 

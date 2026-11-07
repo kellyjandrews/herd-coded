@@ -32,7 +32,9 @@ export async function POST(request: Request, { params }: Context) {
   const originResponse = crossOriginResponse(request);
   if (originResponse) return originResponse;
 
-  const body = (await request.json().catch(() => null)) as { action?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as {
+    action?: unknown;
+  } | null;
   const action = body?.action;
   if (action !== "pause" && action !== "resume" && action !== "retry") {
     return Response.json(

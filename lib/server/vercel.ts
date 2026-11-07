@@ -14,7 +14,7 @@ export class VercelError extends Error {
 export interface VercelProject {
   id: string;
   name: string;
-  targets?: { production?: { alias?: string[] } };
+  targets?: { production?: { alias?: string[]; url?: string } };
 }
 
 interface VercelDeployment {
@@ -68,12 +68,14 @@ export async function findVercelProject(name: string): Promise<VercelProject | n
   }
 }
 
-export function productionUrlFor(project: VercelProject): string {
-  // Prefer custom or project domains over per-branch git aliases.
-  const alias = (project.targets?.production?.alias ?? [])
+export function productionUrlFor(project: VercelProject): string | undefined {
+  // Never guess <name>.vercel.app: it's global and may belong to another account.
+  const production = project.targets?.production;
+  const alias = (production?.alias ?? [])
     .filter((domain) => !domain.includes("-git-"))
     .sort((a, b) => a.length - b.length)[0];
-  return `https://${alias ?? `${project.name}.vercel.app`}`;
+  const host = alias ?? production?.url;
+  return host ? `https://${host}` : undefined;
 }
 
 function toState(value: string | undefined): DeploymentState {
@@ -109,7 +111,7 @@ export function summarizeDeployments(
     const created = deployment.created ?? deployment.createdAt;
     if (deployment.target === "production") {
       production ??= {
-        url: productionUrl,
+        url: productionUrl ?? `https://${deployment.url}`,
         state,
         sha: deployment.meta?.githubCommitSha,
         createdAt: created ? new Date(created).toISOString() : undefined,
@@ -126,8 +128,8 @@ export function summarizeDeployments(
 export async function getDeploymentSummary(name: string): Promise<DeploymentSummary | null> {
   const project = await findVercelProject(name);
   if (!project) return null;
-  const { deployments } = await vercelRequest<{ deployments: VercelDeployment[] }>(
-    `/v6/deployments?projectId=${encodeURIComponent(project.id)}&limit=50`,
-  );
+  const { deployments } = await vercelRequest<{
+    deployments: VercelDeployment[];
+  }>(`/v6/deployments?projectId=${encodeURIComponent(project.id)}&limit=50`);
   return summarizeDeployments(project, deployments);
 }

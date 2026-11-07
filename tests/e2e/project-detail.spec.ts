@@ -43,6 +43,22 @@ test("queue panel adds, pauses, and resumes features", async ({ page }) => {
   await expect(panel.getByTestId("queue-paused")).toHaveCount(0);
 });
 
+test("production links use the Vercel-assigned alias or show not deployed", async ({ page }) => {
+  await page.goto("/");
+  const recipeBox = page.locator("article", { hasText: "recipe-box" });
+  await expect(recipeBox.getByRole("link", { name: /Production/ })).toHaveAttribute(
+    "href",
+    "https://recipe-box-demo-factory.vercel.app",
+  );
+  const petSitter = page.locator("article", { hasText: "pet-sitter" });
+  await expect(petSitter.getByTestId("not-deployed")).toHaveText("Not deployed yet");
+  await expect(petSitter.getByRole("link", { name: /Production/ })).toHaveCount(0);
+
+  await page.goto("/projects/demo-factory/pet-sitter");
+  await expect(page.getByTestId("not-deployed")).toBeVisible();
+  await expect(page.getByTestId("production")).toContainText("No production deployment yet.");
+});
+
 test("unknown projects show not found", async ({ page }) => {
   await page.goto("/projects/demo-factory/does-not-exist");
   await expect(page.getByTestId("project-not-found")).toBeVisible();

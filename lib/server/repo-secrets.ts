@@ -26,6 +26,9 @@ export async function setRepositorySecret(
   );
   await githubRequest(`/repos/${fullName}/actions/secrets/${name}`, token, {
     method: "PUT",
-    body: JSON.stringify({ encrypted_value: sealSecret(key.key, value), key_id: key.key_id }),
+    body: JSON.stringify({
+      encrypted_value: sealSecret(key.key, value),
+      key_id: key.key_id,
+    }),
   });
 }

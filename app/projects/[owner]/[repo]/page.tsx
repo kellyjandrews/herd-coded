@@ -51,9 +51,15 @@ export default async function ProjectPage({
                 <a href={activity.project.repositoryUrl} target="_blank" rel="noreferrer">
                   Repository <span aria-hidden="true">↗</span>
                 </a>
-                <a href={activity.project.productionUrl} target="_blank" rel="noreferrer">
-                  Production <span aria-hidden="true">↗</span>
-                </a>
+                {activity.project.productionUrl ? (
+                  <a href={activity.project.productionUrl} target="_blank" rel="noreferrer">
+                    Production <span aria-hidden="true">↗</span>
+                  </a>
+                ) : (
+                  <span className="not-deployed" data-testid="not-deployed">
+                    Not deployed yet
+                  </span>
+                )}
                 <AutoRefresh />
               </div>
             </section>
