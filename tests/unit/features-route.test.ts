@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const provision = vi.hoisted(() => ({
-  createCopilotFeatureIssue: vi.fn(),
-  createFeatureBatchIssue: vi.fn(),
+  submitFeature: vi.fn(),
+  submitFeatureBatch: vi.fn(),
 }));
 
-vi.mock("@/lib/server/provision-project", () => provision);
+vi.mock("@/lib/server/feature-queue", () => provision);
 
 import { POST } from "@/app/api/features/route";
 
@@ -40,7 +40,7 @@ describe("POST /api/features", () => {
   ])("rejects %s origin with 403", async (_label, headers) => {
     const response = await post({ repository: "acme/app", title: "t", details: "d" }, headers);
     expect(response.status).toBe(403);
-    expect(provision.createCopilotFeatureIssue).not.toHaveBeenCalled();
+    expect(provision.submitFeature).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -53,14 +53,16 @@ describe("POST /api/features", () => {
   ])("rejects %s with 400", async (_label, body) => {
     const response = await post(body);
     expect(response.status).toBe(400);
-    expect(provision.createCopilotFeatureIssue).not.toHaveBeenCalled();
-    expect(provision.createFeatureBatchIssue).not.toHaveBeenCalled();
+    expect(provision.submitFeature).not.toHaveBeenCalled();
+    expect(provision.submitFeatureBatch).not.toHaveBeenCalled();
   });
 
-  it("creates a trimmed single feature issue", async () => {
-    provision.createCopilotFeatureIssue.mockResolvedValue({
+  it("queues a trimmed single feature and reports its position", async () => {
+    provision.submitFeature.mockResolvedValue({
       number: 7,
       url: "u",
+      queued: true,
+      position: 2,
     });
     const response = await post({
       repository: "acme/app",
@@ -68,11 +70,16 @@ describe("POST /api/features", () => {
       details: " Do it ",
     });
     expect(response.status).toBe(201);
-    expect(provision.createCopilotFeatureIssue).toHaveBeenCalledWith("acme/app", "Login", "Do it");
+    expect(provision.submitFeature).toHaveBeenCalledWith("acme/app", "Login", "Do it");
+    expect(await response.json()).toEqual({
+      issue: { number: 7, url: "u" },
+      queued: true,
+      position: 2,
+    });
   });
 
   it("queues a CSV batch", async () => {
-    provision.createFeatureBatchIssue.mockResolvedValue({
+    provision.submitFeatureBatch.mockResolvedValue({
       number: 8,
       url: "u",
     });
@@ -89,7 +96,7 @@ describe("POST /api/features", () => {
   });
 
   it("reports provider failures as 502", async () => {
-    provision.createCopilotFeatureIssue.mockRejectedValue(new Error("GitHub API 500: boom"));
+    provision.submitFeature.mockRejectedValue(new Error("GitHub API 500: boom"));
     const response = await post({
       repository: "acme/app",
       title: "t",

@@ -13,7 +13,9 @@ export const appTemplateFiles: Record<string, string> = {
         start: "next start",
         lint: "biome check .",
         typecheck: "tsc --noEmit",
-        verify: "npm run lint && npm run typecheck",
+        test: "vitest run",
+        "test:e2e": "playwright test",
+        verify: "npm run lint && npm run typecheck && npm run test",
       },
       dependencies: {
         next: "16.4.3",
@@ -22,10 +24,12 @@ export const appTemplateFiles: Record<string, string> = {
       },
       devDependencies: {
         "@biomejs/biome": "2.6.4",
+        "@playwright/test": "1.64.1",
         "@types/node": "22.0.0",
         "@types/react": "19.0.0",
         "@types/react-dom": "19.0.0",
         typescript: "5.6.3",
+        vitest: "3.2.7",
       },
     },
     null,
@@ -33,9 +37,61 @@ export const appTemplateFiles: Record<string, string> = {
   ),
   "next.config.ts": `import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {};
+const nextConfig: NextConfig = {
+  // Exposes the deployed commit so /api/health shows what is running.
+  env: {
+    NEXT_PUBLIC_GIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || "local",
+    NEXT_PUBLIC_DEPLOY_ENV: process.env.VERCEL_ENV || "development",
+  },
+};
 
 export default nextConfig;
+`,
+  "vitest.config.ts": `import { fileURLToPath } from "node:url";
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  resolve: { alias: { "@": fileURLToPath(new URL("./", import.meta.url)) } },
+  test: { include: ["tests/unit/**/*.test.ts"], environment: "node" },
+});
+`,
+  "playwright.config.ts": `import { defineConfig, devices } from "@playwright/test";
+
+// Set BASE_URL to test a deployed preview; otherwise a local dev server starts.
+const baseURL = process.env.BASE_URL ?? "http://localhost:3000";
+
+export default defineConfig({
+  testDir: "tests/e2e",
+  use: { baseURL, trace: "retain-on-failure" },
+  projects: [{ name: "desktop", use: { ...devices["Desktop Chrome"] } }],
+  webServer: process.env.BASE_URL
+    ? undefined
+    : { command: "npm run dev", url: baseURL, reuseExistingServer: true, timeout: 120_000 },
+});
+`,
+  "tests/unit/health.test.ts": `import { describe, expect, it } from "vitest";
+import { GET } from "@/app/api/health/route";
+
+describe("GET /api/health", () => {
+  it("reports ok with the deployed commit", async () => {
+    const response = GET();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ status: "ok", sha: expect.any(String) });
+  });
+});
+`,
+  "tests/e2e/smoke.spec.ts": `import { expect, test } from "@playwright/test";
+
+test("home page renders", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});
+
+test("health endpoint is ok", async ({ request }) => {
+  const response = await request.get("/api/health");
+  expect(response.ok()).toBeTruthy();
+  expect(await response.json()).toMatchObject({ status: "ok" });
+});
 `,
   "tsconfig.json": JSON.stringify(
     {
@@ -183,6 +239,7 @@ jobs:
         env:
           GH_TOKEN: \${{ secrets.COPILOT_ASSIGN_TOKEN }}
           REPO: \${{ github.repository }}
+          PAUSED: \${{ vars.FEATURE_QUEUE_PAUSED }}
 `,
   ".github/scripts/feature-queue.mjs": `const api = "https://api.github.com";
 const token = process.env.GH_TOKEN;
@@ -354,6 +411,10 @@ async function importBatch() {
 }
 
 async function startNext() {
+  if (process.env.PAUSED === "true") {
+    console.log("Feature queue is paused (FEATURE_QUEUE_PAUSED=true).");
+    return;
+  }
   const queued = (
     await gh(
       "/repos/" + repo + "/issues?state=open&labels=" + queueLabel + "&sort=created&direction=asc&per_page=100",
@@ -496,7 +557,11 @@ p {
 }
 `,
   "app/api/health/route.ts": `export function GET() {
-  return Response.json({ status: "ok" });
+  return Response.json({
+    status: "ok",
+    env: process.env.NEXT_PUBLIC_DEPLOY_ENV ?? "development",
+    sha: process.env.NEXT_PUBLIC_GIT_SHA ?? "local",
+  });
 }
 `,
   "README.md": `# New app
@@ -508,22 +573,28 @@ A Next.js app provisioned by AI Code Factory.
 \`npm install\`
 \`npm run dev\`
 
+## Tests
+
+- \`npm run verify\` runs Biome, TypeScript, and Vitest (\`tests/unit/\`).
+- \`npm run test:e2e\` runs Playwright (\`tests/e2e/\`); run \`npx playwright install chromium\` once first. Set \`BASE_URL\` to test a deployed preview.
+
 ## Feature workflow
 
-1. Open a Feature request issue with clear acceptance criteria.
-2. Assign the issue to GitHub Copilot coding agent.
-3. Review the pull request Copilot opens; CI runs build and checks.
-4. Merge when ready. Vercel Git integration deploys the app and creates previews.
+1. Add a feature from the AI Code Factory dashboard, or open a Feature request issue and add the \`feature-queue\` label.
+2. The Feature queue workflow assigns queued features to GitHub Copilot one at a time.
+3. Review the pull request Copilot opens; CI runs verify and build, and Vercel posts a preview.
+4. Merge when ready. Closing the issue starts the next queued feature, and Vercel deploys production.
+
+The factory copies a \`COPILOT_ASSIGN_TOKEN\` repository secret when it creates or repairs this repo; Copilot sessions bill to that token's owner. Pause the queue by setting the \`FEATURE_QUEUE_PAUSED\` repository variable to \`true\` (the dashboard does this for you).
 
 Copilot coding agent must be enabled for the repository and your account must have an eligible Copilot plan. Vercel Hobby and GitHub usage limits apply.
 
 ## Feature batches from CSV
 
-1. Add a \`COPILOT_ASSIGN_TOKEN\` repository secret: a fine-grained PAT for this repo with Issues, Pull requests, Contents, and Actions read/write. Copilot sessions it starts bill to that token's owner.
-2. Open a **Feature batch (CSV)** issue and attach a CSV with a \`title,body,labels\` header (up to 50 rows). For private repos, paste the CSV in a \`csv\` code block if the attachment can't be read.
-3. The Feature queue workflow creates one \`feature-queue\` issue per row, closes the batch issue, and assigns the first to Copilot.
-4. Each time a queued issue closes (its PR merges), the next one is assigned.
+1. Open a **Feature batch (CSV)** issue and attach a CSV with a \`title,body,labels\` header (up to 50 rows). For private repos, paste the CSV in a \`csv\` code block if the attachment can't be read.
+2. The Feature queue workflow creates one \`feature-queue\` issue per row, closes the batch issue, and assigns the first to Copilot.
+3. Each time a queued issue closes (its PR merges), the next one is assigned.
 
-If Copilot's PR is closed without merging, unassign Copilot or close the issue, then run the Feature queue workflow manually to continue.
+If Copilot's PR is closed without merging, unassign Copilot or close the issue, then press Retry on the project's dashboard page (or run the Feature queue workflow manually) to continue.
 `,
 };

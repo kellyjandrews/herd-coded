@@ -51,3 +51,11 @@ export function missingFactoryAuthResponse(): Response {
     headers: { "Cache-Control": "no-store" },
   });
 }
+
+export function factoryAuthResponse(request: Request): Response | null {
+  if (factoryRequestAuthorized(request.headers.get("authorization"))) return null;
+  if (process.env.NODE_ENV === "production" && !factoryAuthConfigured()) {
+    return missingFactoryAuthResponse();
+  }
+  return unauthorizedFactoryResponse();
+}

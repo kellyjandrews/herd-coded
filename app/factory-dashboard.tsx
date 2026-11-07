@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type FactoryProject = {
@@ -11,10 +12,13 @@ type FactoryProject = {
   cloneCommand: string;
   productionUrl: string;
   createdAt?: string;
+  visibility?: "private" | "public";
+  repairSteps?: string[];
 };
 
 type ProjectsResponse = {
   configured?: boolean;
+  mock?: boolean;
   owner?: string;
   projects?: FactoryProject[];
   error?: string;
@@ -31,6 +35,8 @@ const requiredSettings = [
 export default function FactoryDashboard() {
   const [projects, setProjects] = useState<FactoryProject[]>([]);
   const [configured, setConfigured] = useState<boolean | null>(null);
+  const [mock, setMock] = useState(false);
+  const [repairing, setRepairing] = useState<string | null>(null);
   const [owner, setOwner] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -47,7 +53,10 @@ export default function FactoryDashboard() {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [submittingFeature, setSubmittingFeature] = useState(false);
   const [featureResults, setFeatureResults] = useState<
-    Record<string, { number: number; url: string; batch?: boolean }>
+    Record<
+      string,
+      { number: number; url: string; batch?: boolean; queued?: boolean; position?: number }
+    >
   >({});
 
   useEffect(() => {
@@ -65,6 +74,7 @@ export default function FactoryDashboard() {
         setOwner(body.owner ?? null);
         if (!response.ok) throw new Error(body.error ?? "Could not load projects.");
         setConfigured(Boolean(body.configured));
+        setMock(Boolean(body.mock));
         setProjects(body.projects ?? []);
       } catch (loadError) {
         if (loadError instanceof Error && loadError.name === "AbortError") return;
@@ -134,6 +144,8 @@ export default function FactoryDashboard() {
       const body = (await response.json()) as {
         issue?: { number: number; url: string };
         batch?: boolean;
+        queued?: boolean;
+        position?: number;
         error?: string;
       };
       const issue = body.issue;
@@ -141,7 +153,7 @@ export default function FactoryDashboard() {
         throw new Error(body.error ?? "Could not create the feature issue.");
       setFeatureResults((current) => ({
         ...current,
-        [repository]: { ...issue, batch: body.batch },
+        [repository]: { ...issue, batch: body.batch, queued: body.queued, position: body.position },
       }));
       setFeatureTitle("");
       setFeatureDetails("");
@@ -155,6 +167,29 @@ export default function FactoryDashboard() {
       );
     } finally {
       setSubmittingFeature(false);
+    }
+  }
+
+  async function repairProject(project: FactoryProject) {
+    setRepairing(project.repository);
+    setError("");
+    try {
+      const response = await fetch(`/api/projects/${project.repository}/repair`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const body = (await response.json()) as { project?: FactoryProject; error?: string };
+      if (!response.ok || !body.project) throw new Error(body.error ?? "Repair failed.");
+      const repaired = body.project;
+      setProjects((current) =>
+        current.map((item) => (item.repository === repaired.repository ? repaired : item)),
+      );
+    } catch (repairError) {
+      setError(repairError instanceof Error ? repairError.message : "Repair failed.");
+    } finally {
+      setRepairing(null);
     }
   }
 
@@ -297,6 +332,12 @@ export default function FactoryDashboard() {
               <button type="button" onClick={() => setError("")} aria-label="Dismiss error">
                 ×
               </button>
+            </div>
+          )}
+          {mock && (
+            <div className="notice notice-setup" role="status" data-testid="mock-mode">
+              <span>i</span>
+              <p>Demo mode: projects and Copilot activity are mock data (USE_MOCKS=true).</p>
             </div>
           )}
           {configured === false && (
@@ -464,10 +505,26 @@ export default function FactoryDashboard() {
                     <div className="project-monogram">{project.name.slice(0, 1).toUpperCase()}</div>
                     <div className="project-main">
                       <div className="project-title-line">
-                        <h3>{project.name}</h3>
+                        <h3>
+                          <Link href={`/projects/${project.repository}`}>{project.name}</Link>
+                        </h3>
                         <span className="project-visibility">
-                          <span aria-hidden="true">◈</span> GitHub
+                          <span aria-hidden="true">◈</span>{" "}
+                          {project.visibility === "public"
+                            ? "Public"
+                            : project.visibility === "private"
+                              ? "Private"
+                              : "GitHub"}
                         </span>
+                        {project.repairSteps && project.repairSteps.length > 0 && (
+                          <span
+                            className="repair-badge"
+                            title={`Missing: ${project.repairSteps.join(", ")}`}
+                            data-testid="needs-repair"
+                          >
+                            Needs repair
+                          </span>
+                        )}
                       </div>
                       <p>{project.repository}</p>
                       <div className="clone-route">
@@ -485,7 +542,9 @@ export default function FactoryDashboard() {
                         <p className="feature-result">
                           {featureResults[project.repository].batch
                             ? "Queued feature batch "
-                            : "Copilot is working on "}
+                            : featureResults[project.repository].queued
+                              ? "Queued "
+                              : "Assigned directly to Copilot: "}
                           <a
                             href={featureResults[project.repository].url}
                             target="_blank"
@@ -495,7 +554,12 @@ export default function FactoryDashboard() {
                           </a>
                           {featureResults[project.repository].batch
                             ? ". The Feature queue workflow creates an issue per row and assigns Copilot one at a time."
-                            : ". A pull request will appear in the repo."}
+                            : featureResults[project.repository].queued
+                              ? featureResults[project.repository].position
+                                ? ` at position ${featureResults[project.repository].position}.`
+                                : "."
+                              : ". This project has no feature queue."}{" "}
+                          <Link href={`/projects/${project.repository}`}>Track progress →</Link>
                         </p>
                       )}
                       {featureRepo === project.repository ? (
@@ -531,8 +595,8 @@ export default function FactoryDashboard() {
                                 onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
                               />
                               <p className="field-hint">
-                                Header row: title,body,labels. Up to 50 rows. Requires the
-                                COPILOT_ASSIGN_TOKEN secret in the repo.
+                                Header row: title,body,labels. Up to 50 rows. Copilot builds them
+                                one at a time.
                               </p>
                             </>
                           ) : (
@@ -570,10 +634,10 @@ export default function FactoryDashboard() {
                               disabled={submittingFeature}
                             >
                               {submittingFeature
-                                ? "Assigning…"
+                                ? "Queuing…"
                                 : featureMode === "csv"
-                                  ? "Queue for Copilot"
-                                  : "Assign to Copilot"}
+                                  ? "Queue batch for Copilot"
+                                  : "Add to Copilot queue"}
                             </button>
                           </div>
                         </form>
@@ -591,12 +655,25 @@ export default function FactoryDashboard() {
                       )}
                     </div>
                     <div className="project-links">
+                      <Link href={`/projects/${project.repository}`}>
+                        Open project <span aria-hidden="true">→</span>
+                      </Link>
                       <a href={project.repositoryUrl} target="_blank" rel="noreferrer">
                         Repository <span aria-hidden="true">↗</span>
                       </a>
                       <a href={project.productionUrl} target="_blank" rel="noreferrer">
-                        Vercel <span aria-hidden="true">↗</span>
+                        Production <span aria-hidden="true">↗</span>
                       </a>
+                      {project.repairSteps && project.repairSteps.length > 0 && (
+                        <button
+                          className="button button-secondary"
+                          type="button"
+                          disabled={repairing === project.repository}
+                          onClick={() => void repairProject(project)}
+                        >
+                          {repairing === project.repository ? "Repairing…" : "Repair"}
+                        </button>
+                      )}
                     </div>
                   </article>
                 ))}

@@ -54,8 +54,22 @@ describe("/api/projects", () => {
     const response = await GET(new Request(url));
     expect(await response.json()).toEqual({
       configured: true,
+      mock: false,
       owner: "acme",
       projects: [],
+    });
+  });
+
+  it("GET serves demo projects in mock mode without credentials", async () => {
+    vi.stubEnv("USE_MOCKS", "true");
+    vi.stubEnv("FACTORY_GITHUB_TOKEN", "");
+    provision.listFactoryProjects.mockResolvedValue([{ name: "demo" }]);
+    const response = await GET(new Request(url));
+    expect(await response.json()).toMatchObject({
+      configured: true,
+      mock: true,
+      owner: "demo-factory",
+      projects: [{ name: "demo" }],
     });
   });
 

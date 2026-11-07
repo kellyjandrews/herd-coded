@@ -14,15 +14,26 @@ The deployed app is the factory. It is protected with HTTP Basic Auth (`proxy.ts
 `/api/health` stays public for smoke tests.
 
 1. **Create project** — creates a GitHub repo from a Next.js template, tags it
-   `factory-app`, and creates a linked Vercel project (free tier).
+   `factory-app`, creates a linked Vercel project (free tier), and copies the
+   `COPILOT_ASSIGN_TOKEN` secret the feature queue needs. Creation is safe to retry; a
+   **Repair** button appears on any project missing its template, queue workflow, labels,
+   Vercel project, or secret.
 2. **New feature** — on any project, describe the feature and acceptance criteria. The
-   factory opens an issue assigned to `copilot-swe-agent[bot]`; Copilot works remotely and
-   opens a PR. Requires a Copilot plan with the cloud agent enabled for the owner.
-3. **Clone** — copy the clone command to work locally instead.
+   factory adds it to the project's feature queue, and the queue assigns Copilot one issue at
+   a time; Copilot works remotely and opens a PR. CSV batches use the same queue. Requires a
+   Copilot plan with the cloud agent enabled for the owner.
+3. **Project page** (`/projects/<owner>/<repo>`) — every feature with its state (Queued,
+   Copilot working, PR open, Done), linked PR, check status, preview URL, the production
+   deployment, and queue controls (add, pause, resume, retry).
+4. **Clone** — copy the clone command to work locally instead. `npm run create-app` runs the
+   same provisioning from the terminal and clones the result.
+
+Set `USE_MOCKS=true` to run the dashboard with seeded demo projects and no credentials.
 
 Set these Vercel environment variables on the factory project (see `.env.example`):
 `FACTORY_BASIC_AUTH_USERNAME`, `FACTORY_BASIC_AUTH_PASSWORD`, `FACTORY_GITHUB_OWNER`,
-`FACTORY_GITHUB_TOKEN`, `VERCEL_ACCESS_TOKEN`, and optionally `VERCEL_TEAM_ID`. Without the
+`FACTORY_GITHUB_TOKEN`, `VERCEL_ACCESS_TOKEN`, and optionally `VERCEL_TEAM_ID` and
+`FACTORY_COPILOT_ASSIGN_TOKEN`. Without the
 Basic Auth values, production returns 503.
 
 ## Quick start
