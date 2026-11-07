@@ -12,12 +12,10 @@ export function factoryAuthConfigured(): boolean {
   );
 }
 
-export function factoryRequestAuthorized(authorization: string | null): boolean {
+export function basicAuthCredentialsMatch(authorization: string | null): boolean {
   const expectedUsername = process.env.FACTORY_BASIC_AUTH_USERNAME;
   const expectedPassword = process.env.FACTORY_BASIC_AUTH_PASSWORD;
-
-  if (!expectedUsername || !expectedPassword) return process.env.NODE_ENV !== "production";
-  if (!authorization?.startsWith("Basic ")) return false;
+  if (!expectedUsername || !expectedPassword || !authorization?.startsWith("Basic ")) return false;
 
   try {
     const decoded = Buffer.from(authorization.slice(6), "base64").toString("utf8");
@@ -30,6 +28,11 @@ export function factoryRequestAuthorized(authorization: string | null): boolean 
   } catch {
     return false;
   }
+}
+
+export function factoryRequestAuthorized(authorization: string | null): boolean {
+  if (!factoryAuthConfigured()) return process.env.NODE_ENV !== "production";
+  return basicAuthCredentialsMatch(authorization);
 }
 
 export function unauthorizedFactoryResponse(): Response {
@@ -47,4 +50,12 @@ export function missingFactoryAuthResponse(): Response {
     status: 503,
     headers: { "Cache-Control": "no-store" },
   });
+}
+
+export function factoryAuthResponse(request: Request): Response | null {
+  if (factoryRequestAuthorized(request.headers.get("authorization"))) return null;
+  if (process.env.NODE_ENV === "production" && !factoryAuthConfigured()) {
+    return missingFactoryAuthResponse();
+  }
+  return unauthorizedFactoryResponse();
 }

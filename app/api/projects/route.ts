@@ -1,55 +1,50 @@
-import {
-  factoryRequestAuthorized,
-  missingFactoryAuthResponse,
-  unauthorizedFactoryResponse,
-} from "@/lib/server/factory-auth";
+import { factoryAuthResponse } from "@/lib/server/factory-auth";
+import { providerCredentialsConfigured, usingMocks } from "@/lib/server/github";
+import { mockOwner } from "@/lib/server/mock-data";
 import {
   listFactoryProjects,
   ProvisionProjectError,
   provisionProject,
 } from "@/lib/server/provision-project";
+import { crossOriginResponse } from "@/lib/server/request-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function hasProviderCredentials(): boolean {
-  return Boolean(
-    process.env.FACTORY_GITHUB_OWNER &&
-      process.env.FACTORY_GITHUB_TOKEN &&
-      process.env.VERCEL_ACCESS_TOKEN,
-  );
+  return usingMocks() || providerCredentialsConfigured();
 }
 
-function authorized(request: Request): Response | null {
-  if (!factoryRequestAuthorized(request.headers.get("authorization"))) {
-    if (process.env.NODE_ENV === "production" && !process.env.FACTORY_BASIC_AUTH_PASSWORD) {
-      return missingFactoryAuthResponse();
-    }
-    return unauthorizedFactoryResponse();
-  }
-  return null;
+function factoryOwner(): string | undefined {
+  return usingMocks() ? mockOwner : process.env.FACTORY_GITHUB_OWNER || undefined;
 }
 
 export async function GET(request: Request) {
-  const authResponse = authorized(request);
+  const authResponse = factoryAuthResponse(request);
   if (authResponse) return authResponse;
   if (!hasProviderCredentials()) {
     return Response.json(
-      { configured: false, projects: [] },
+      {
+        configured: false,
+        owner: factoryOwner(),
+        projects: [],
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   }
 
+  const owner = factoryOwner();
   try {
     const projects = await listFactoryProjects();
     return Response.json(
-      { configured: true, projects },
+      { configured: true, mock: usingMocks(), owner, projects },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
     return Response.json(
       {
         configured: true,
+        owner,
         projects: [],
         error: error instanceof Error ? error.message : "Unable to load projects.",
       },
@@ -59,22 +54,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const authResponse = authorized(request);
+  const authResponse = factoryAuthResponse(request);
   if (authResponse) return authResponse;
 
-  const origin = request.headers.get("origin");
-  if (!origin || new URL(origin).origin !== new URL(request.url).origin) {
-    return Response.json(
-      { error: "Cross-origin project creation is not allowed." },
-      { status: 403 },
-    );
-  }
-  if (request.headers.get("sec-fetch-site") === "cross-site") {
-    return Response.json(
-      { error: "Cross-origin project creation is not allowed." },
-      { status: 403 },
-    );
-  }
+  const originResponse = crossOriginResponse(request);
+  if (originResponse) return originResponse;
   if (!hasProviderCredentials()) {
     return Response.json(
       { error: "Project provisioning is not configured on this factory." },

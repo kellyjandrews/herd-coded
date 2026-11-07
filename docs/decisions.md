@@ -12,5 +12,9 @@ One line each: `YYYY-MM-DD — decision — why`
 - 2026-11-07 — Error triage starts as user-triggered incident drafting — automatic ingestion and issue creation wait for a selected telemetry provider and authenticated integration.
 - 2026-11-07 — Default bootstrap uses Vercel CLI and GitHub CLI instead of Terraform — app secrets stay in Vercel and workflow credentials are configured at their point of use.
 - 2026-11-07 — Generated apps queue CSV feature batches and assign Copilot one issue at a time via a PAT secret — sequential PRs avoid merge conflicts, and the Actions GITHUB_TOKEN cannot assign the Copilot agent.
+- 2026-11-07 — All dashboard features go through the per-app feature queue; the app template is the only copy of the queue workflow — one Copilot session per repo, and Repair pushes queue updates to existing apps.
+- 2026-11-07 — The factory copies its token into each app's `COPILOT_ASSIGN_TOKEN` secret (override with `FACTORY_COPILOT_ASSIGN_TOKEN`) — hackathon speed over least privilege; revisit with a narrower token or GitHub App.
+- 2026-11-07 — `USE_MOCKS=true` serves seeded projects from an in-memory store — the demo path and e2e work without GitHub or Vercel credentials.
+- 2026-11-07 — Repository secrets are sealed with tweetnacl + blakejs instead of libsodium-wrappers — libsodium-wrappers 0.7.x ships a broken ESM build.
 - 2026-10-30 — Specs in `specs/<slug>/` are the hand-off between agents — any agent or human can resume a feature from files.
 - 2026-10-30 — Neon branch per PR (optional) — each preview gets its own database, so demos never share or corrupt data.

@@ -1,17 +1,15 @@
-import { factoryRequestAuthorized, unauthorizedFactoryResponse } from "@/lib/server/factory-auth";
-import { createCopilotFeatureIssue, createFeatureBatchIssue } from "@/lib/server/provision-project";
+import { factoryAuthResponse } from "@/lib/server/factory-auth";
+import { submitFeature, submitFeatureBatch } from "@/lib/server/feature-queue";
+import { crossOriginResponse } from "@/lib/server/request-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  if (!factoryRequestAuthorized(request.headers.get("authorization"))) {
-    return unauthorizedFactoryResponse();
-  }
-  const origin = request.headers.get("origin");
-  if (!origin || new URL(origin).origin !== new URL(request.url).origin) {
-    return Response.json({ error: "Cross-origin requests are not allowed." }, { status: 403 });
-  }
+  const authResponse = factoryAuthResponse(request);
+  if (authResponse) return authResponse;
+  const originResponse = crossOriginResponse(request);
+  if (originResponse) return originResponse;
 
   let body: Record<string, unknown>;
   try {
@@ -43,7 +41,7 @@ export async function POST(request: Request) {
     }
     const name = typeof fileName === "string" && fileName.trim() ? fileName.trim() : "features.csv";
     try {
-      const issue = await createFeatureBatchIssue(repository, name.slice(0, 100), csv);
+      const issue = await submitFeatureBatch(repository, name.slice(0, 100), csv);
       return Response.json(
         { issue, batch: true },
         { status: 201, headers: { "Cache-Control": "no-store" } },
@@ -71,8 +69,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const issue = await createCopilotFeatureIssue(repository, title.trim(), details.trim());
-    return Response.json({ issue }, { status: 201, headers: { "Cache-Control": "no-store" } });
+    const { queued, position, ...issue } = await submitFeature(
+      repository,
+      title.trim(),
+      details.trim(),
+    );
+    return Response.json(
+      { issue, queued, position },
+      { status: 201, headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
     return Response.json(
       {

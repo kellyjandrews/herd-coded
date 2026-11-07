@@ -1,8 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // BASE_URL set → test a deployed preview/production URL.
-// BASE_URL unset → start the local dev server.
-const baseURL = process.env.BASE_URL ?? "http://localhost:3000";
+// BASE_URL unset → start a local dev server with mock providers on its own port.
+const localPort = 3100;
+const baseURL = process.env.BASE_URL ?? `http://localhost:${localPort}`;
 const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 const basicAuthUsername = process.env.FACTORY_BASIC_AUTH_USERNAME;
 const basicAuthPassword = process.env.FACTORY_BASIC_AUTH_PASSWORD;
@@ -28,9 +29,20 @@ export default defineConfig({
   },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", use: { ...devices["Pixel 7"] } },
+    // Mock-data specs mutate a shared in-memory store, so run them once.
+    {
+      name: "mobile",
+      use: { ...devices["Pixel 7"] },
+      testIgnore: /project-detail\.spec\.ts/,
+    },
   ],
   webServer: process.env.BASE_URL
     ? undefined
-    : { command: "npm run dev", url: baseURL, reuseExistingServer: true, timeout: 120_000 },
+    : {
+        command: `npx next dev -p ${localPort}`,
+        url: baseURL,
+        reuseExistingServer: false,
+        timeout: 120_000,
+        env: { USE_MOCKS: "true" },
+      },
 });
