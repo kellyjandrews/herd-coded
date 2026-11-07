@@ -154,7 +154,7 @@ export default function QueuePanel({
           aria-label="New feature details"
           required
           rows={3}
-          maxLength={5000}
+          maxLength={60000}
           placeholder="What should users be able to do? Include acceptance criteria."
           value={details}
           onChange={(event) => setDetails(event.target.value)}

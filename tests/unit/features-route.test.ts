@@ -47,7 +47,7 @@ describe("POST /api/features", () => {
     ["invalid JSON", "{"],
     ["missing details", { repository: "acme/app", title: "Add login" }],
     ["blank title", { repository: "acme/app", title: "  ", details: "d" }],
-    ["long details", { repository: "acme/app", title: "t", details: "x".repeat(5001) }],
+    ["long details", { repository: "acme/app", title: "t", details: "x".repeat(60001) }],
     ["CSV without title header", { repository: "acme/app", csv: "name,body\na,b\n" }],
     ["CSV with code fence", { repository: "acme/app", csv: "title\n```\n" }],
   ])("rejects %s with 400", async (_label, body) => {
@@ -76,6 +76,14 @@ describe("POST /api/features", () => {
       queued: true,
       position: 2,
     });
+  });
+
+  it("accepts long Markdown feature details up to 60,000 characters", async () => {
+    provision.submitFeature.mockResolvedValue({ number: 12, url: "u", queued: true });
+    const details = `# Feature\n\n${"x".repeat(60000 - 11)}`;
+    const response = await post({ repository: "acme/app", title: "Long feature", details });
+    expect(response.status).toBe(201);
+    expect(provision.submitFeature).toHaveBeenCalledWith("acme/app", "Long feature", details);
   });
 
   it("queues a CSV batch", async () => {

@@ -61,9 +61,9 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  if (!title.trim() || title.length > 200 || !details.trim() || details.length > 5000) {
+  if (!title.trim() || title.length > 200 || !details.trim() || details.length > 60000) {
     return Response.json(
-      { error: "Enter a title (≤200 chars) and details (≤5000 chars)." },
+      { error: "Enter a title (≤200 chars) and details (≤60,000 chars)." },
       { status: 400 },
     );
   }
