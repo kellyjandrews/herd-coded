@@ -36,6 +36,13 @@ Set these Vercel environment variables on the factory project (see `.env.example
 `FACTORY_COPILOT_ASSIGN_TOKEN`. Without the
 Basic Auth values, production returns 503.
 
+For preview deployments, add `FACTORY_BASIC_AUTH_USERNAME` and
+`FACTORY_BASIC_AUTH_PASSWORD` as GitHub Actions secrets (repository secrets or secrets
+in the `preview` environment). The preview workflow supplies them to the deployment
+and Playwright; missing values fail the workflow before deployment. If Vercel Deployment
+Protection is enabled, also configure `VERCEL_AUTOMATION_BYPASS_SECRET` as a GitHub
+Actions secret. These settings do not change production credentials.
+
 ## Quick start
 
 **To build locally:** Node 20+, VS Code, and GitHub Copilot Chat with Agent mode.
@@ -120,6 +127,7 @@ app/ tests/                   minimal Next.js starter with /api/health, Vitest, 
 | Application secrets such as `DATABASE_URL` | Vercel project environment variables | App runtime; also available to GitHub deploy builds through `vercel pull` |
 | `VERCEL_TOKEN` | GitHub Actions secret | Preview, production, and rollback workflows |
 | `VERCEL_AUTOMATION_BYPASS_SECRET` | GitHub Actions secret, when preview protection is enabled | Health checks and Playwright through Vercel Deployment Protection |
+| `FACTORY_BASIC_AUTH_USERNAME`, `FACTORY_BASIC_AUTH_PASSWORD` | GitHub Actions secrets, repository or `preview` environment | Preview dashboard authentication and Playwright |
 | `NEON_API_KEY`, `PRODUCTION_DATABASE_URL` | GitHub Actions secrets when workflows need them | Optional database branching and migrations |
 | `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `PRODUCTION_URL`, `NEON_PROJECT_ID` | GitHub Actions variables | Workflows |
 

@@ -40,6 +40,16 @@ jobs:
           cache: npm
       - run: npm ci
 
+      - name: Check preview authentication configuration
+        env:
+          FACTORY_BASIC_AUTH_USERNAME: ${{ secrets.FACTORY_BASIC_AUTH_USERNAME }}
+          FACTORY_BASIC_AUTH_PASSWORD: ${{ secrets.FACTORY_BASIC_AUTH_PASSWORD }}
+        run: |
+          if [ -z "$FACTORY_BASIC_AUTH_USERNAME" ] || [ -z "$FACTORY_BASIC_AUTH_PASSWORD" ]; then
+            echo "::error::Set FACTORY_BASIC_AUTH_USERNAME and FACTORY_BASIC_AUTH_PASSWORD as GitHub Actions secrets for preview deployments."
+            exit 1
+          fi
+
       # ── Optional: database branch per PR (set NEON_PROJECT_ID var + NEON_API_KEY secret) ──
       - name: Create Neon branch
         id: db
@@ -63,11 +73,15 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           DATABASE_URL: ${{ steps.db.outputs.db_url_pooled }}
+          FACTORY_BASIC_AUTH_USERNAME: ${{ secrets.FACTORY_BASIC_AUTH_USERNAME }}
+          FACTORY_BASIC_AUTH_PASSWORD: ${{ secrets.FACTORY_BASIC_AUTH_PASSWORD }}
         run: |
           npx vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
           npx vercel build --token="$VERCEL_TOKEN"
           EXTRA=()
           if [ -n "$DATABASE_URL" ]; then EXTRA+=(--env "DATABASE_URL=$DATABASE_URL"); fi
+          EXTRA+=(--env "FACTORY_BASIC_AUTH_USERNAME=$FACTORY_BASIC_AUTH_USERNAME")
+          EXTRA+=(--env "FACTORY_BASIC_AUTH_PASSWORD=$FACTORY_BASIC_AUTH_PASSWORD")
           URL=$(npx vercel deploy --prebuilt --token="$VERCEL_TOKEN" \
                   --meta pr="$PR" --meta sha="$GITHUB_SHA" "${EXTRA[@]}")
           echo "url=$URL" >> "$GITHUB_OUTPUT"
@@ -88,6 +102,8 @@ jobs:
     needs: deploy
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment:
+      name: preview
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
