@@ -56,7 +56,11 @@ const factoryLabels = [
     description: "Queued for Copilot, one at a time",
   },
 ];
-const queueFiles = [".github/workflows/feature-queue.yml", ".github/scripts/feature-queue.mjs"];
+const queueFiles = [
+  ".github/workflows/feature-queue.yml",
+  ".github/scripts/feature-queue.mjs",
+  ".github/workflows/ci.yml",
+];
 export const copilotSecretName = "COPILOT_ASSIGN_TOKEN";
 
 function copilotAssignToken(): string | undefined {
