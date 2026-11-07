@@ -225,6 +225,7 @@ export function mockCreateProject(input: CreateProjectInput): FactoryProject {
     throw new Error("GitHub API 422: name already exists on this account");
   const project = {
     ...mockProject(input.name, input.visibility),
+    description: input.description,
     createdAt: hoursAgo(0),
   };
   store().set(repository, {

@@ -10,6 +10,12 @@ vi.mock("@/lib/server/provision-project", () => ({
   ProvisionProjectError: class ProvisionProjectError extends Error {},
 }));
 
+const appPrompt = vi.hoisted(() => ({
+  startMvp: vi.fn(),
+  maxPromptLength: 8000,
+}));
+vi.mock("@/lib/server/app-prompt", () => appPrompt);
+
 import { GET, POST } from "@/app/api/projects/route";
 
 const url = "https://factory.example/api/projects";
@@ -95,6 +101,8 @@ describe("/api/projects", () => {
     ["invalid JSON", "{"],
     ["non-string name", { name: 42, visibility: "private" }],
     ["long description", { name: "app", description: "x".repeat(351), visibility: "private" }],
+    ["long prompt", { name: "app", prompt: "x".repeat(8001), visibility: "private" }],
+    ["non-string prompt", { name: "app", prompt: 42, visibility: "private" }],
     ["bad visibility", { name: "app", visibility: "internal" }],
   ])("POST rejects %s with 400", async (_label, body) => {
     const response = await post(body);
@@ -110,6 +118,42 @@ describe("/api/projects", () => {
       name: "app",
       description: undefined,
       visibility: "public",
+    });
+    expect(appPrompt.startMvp).not.toHaveBeenCalled();
+  });
+
+  it("POST passes the prompt and starts the MVP", async () => {
+    const project = { name: "app", repository: "acme/app" };
+    provision.provisionProject.mockResolvedValue(project);
+    appPrompt.startMvp.mockResolvedValue({ number: 1, url: "u", queued: true });
+    const response = await post({
+      name: "app",
+      prompt: "  A todo app  ",
+      visibility: "private",
+    });
+    expect(response.status).toBe(201);
+    expect(provision.provisionProject).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: "A todo app" }),
+    );
+    expect(appPrompt.startMvp).toHaveBeenCalledWith(project, "A todo app");
+    expect(await response.json()).toEqual({
+      project,
+      mvp: { number: 1, url: "u", queued: true },
+    });
+  });
+
+  it("POST still returns the project when the MVP issue fails", async () => {
+    provision.provisionProject.mockResolvedValue({ name: "app" });
+    appPrompt.startMvp.mockRejectedValue(new Error("GitHub API 403"));
+    const response = await post({
+      name: "app",
+      prompt: "A todo app",
+      visibility: "private",
+    });
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({
+      project: { name: "app" },
+      mvpError: "GitHub API 403",
     });
   });
 });

@@ -1,3 +1,4 @@
+import { maxPromptLength, startMvp } from "@/lib/server/app-prompt";
 import { factoryAuthResponse } from "@/lib/server/factory-auth";
 import { providerCredentialsConfigured, usingMocks } from "@/lib/server/github";
 import { mockOwner } from "@/lib/server/mock-data";
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Project details are required." }, { status: 400 });
   }
 
-  const { name, description, visibility } = body as Record<string, unknown>;
+  const { name, description, prompt, visibility } = body as Record<string, unknown>;
   if (typeof name !== "string" || name.length > 100) {
     return Response.json({ error: "Enter a project name of 1–100 characters." }, { status: 400 });
   }
@@ -86,17 +87,37 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+  if (prompt !== undefined && (typeof prompt !== "string" || prompt.length > maxPromptLength)) {
+    return Response.json(
+      {
+        error: `Describe the app in ${maxPromptLength.toLocaleString("en-US")} characters or fewer.`,
+      },
+      { status: 400 },
+    );
+  }
   if (visibility !== "private" && visibility !== "public") {
     return Response.json({ error: "Choose private or public visibility." }, { status: 400 });
   }
+  const appPrompt = typeof prompt === "string" ? prompt.trim() : "";
 
   try {
     const project = await provisionProject({
       name,
       description: typeof description === "string" ? description : undefined,
+      prompt: appPrompt || undefined,
       visibility,
     });
-    return Response.json({ project }, { status: 201, headers: { "Cache-Control": "no-store" } });
+    if (!appPrompt) {
+      return Response.json({ project }, { status: 201, headers: { "Cache-Control": "no-store" } });
+    }
+    // The project exists either way, so an MVP failure is reported without failing the request.
+    const mvp = await startMvp(project, appPrompt).catch((error: unknown) =>
+      error instanceof Error ? error : new Error("Could not create the MVP issue."),
+    );
+    return Response.json(
+      mvp instanceof Error ? { project, mvpError: mvp.message } : { project, mvp },
+      { status: 201, headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
     if (error instanceof ProvisionProjectError) {
       return Response.json(
