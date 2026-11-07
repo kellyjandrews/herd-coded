@@ -14,6 +14,7 @@ One line each: `YYYY-MM-DD — decision — why`
 - 2026-11-07 — Generated apps queue CSV feature batches and assign Copilot one issue at a time via a PAT secret — sequential PRs avoid merge conflicts, and the Actions GITHUB_TOKEN cannot assign the Copilot agent.
 - 2026-11-07 — All dashboard features go through the per-app feature queue; the app template is the only copy of the queue workflow — one Copilot session per repo, and Repair pushes queue updates to existing apps.
 - 2026-11-07 — The factory copies its token into each app's `COPILOT_ASSIGN_TOKEN` secret (override with `FACTORY_COPILOT_ASSIGN_TOKEN`) — hackathon speed over least privilege; revisit with a narrower token or GitHub App.
+- 2026-11-07 — The app's Feature queue auto-ships finished Copilot PRs: marks ready, dispatches CI with the PAT, squash-merges on green, and asks `@copilot` to fix failures (3 max); `FEATURE_AUTO_MERGE=false` opts out — Copilot-triggered CI needs manual approval and drafts never merged, so nothing deployed.
 - 2026-11-07 — `USE_MOCKS=true` serves seeded projects from an in-memory store — the demo path and e2e work without GitHub or Vercel credentials.
 - 2026-11-07 — Repository secrets are sealed with tweetnacl + blakejs instead of libsodium-wrappers — libsodium-wrappers 0.7.x ships a broken ESM build.
 - 2026-10-30 — Specs in `specs/<slug>/` are the hand-off between agents — any agent or human can resume a feature from files.

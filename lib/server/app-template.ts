@@ -205,6 +205,14 @@ body:
 on:
   issues:
     types: [opened, labeled, closed]
+  # Ship triggers: Copilot finishing, Vercel preview comments, and CI results.
+  pull_request_target:
+    types: [review_requested, ready_for_review]
+  issue_comment:
+    types: [created, edited]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -240,6 +248,24 @@ jobs:
           GH_TOKEN: \${{ secrets.COPILOT_ASSIGN_TOKEN }}
           REPO: \${{ github.repository }}
           PAUSED: \${{ vars.FEATURE_QUEUE_PAUSED }}
+
+  # Marks finished Copilot PRs ready, runs CI without approval, and merges on green.
+  ship:
+    if: >-
+      github.event_name == 'pull_request_target' || github.event_name == 'workflow_run' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.event.comment.user.login == 'vercel[bot]')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: feature-ship
+    steps:
+      # Default-branch code only; never check out the pull request.
+      - uses: actions/checkout@v4
+      - run: node .github/scripts/feature-queue.mjs ship
+        env:
+          GH_TOKEN: \${{ secrets.COPILOT_ASSIGN_TOKEN }}
+          REPO: \${{ github.repository }}
+          AUTO_MERGE: \${{ vars.FEATURE_AUTO_MERGE }}
 `,
   ".github/scripts/feature-queue.mjs": `const api = "https://api.github.com";
 const token = process.env.GH_TOKEN;
@@ -247,6 +273,8 @@ const repo = process.env.REPO;
 const batchLabel = "feature-batch";
 const queueLabel = "feature-queue";
 const maxRows = 50;
+const maxFixRequests = 3;
+const fixMarker = "<!-- factory-ci-fix";
 const attachmentPrefix = "https://github.com/user-attachments/files/";
 const fence = "\`\`\`";
 
@@ -268,9 +296,22 @@ async function gh(path, init = {}) {
     },
   });
   if (!response.ok) {
-    throw new Error("GitHub API " + response.status + " " + path + ": " + (await response.text()));
+    const error = new Error(
+      "GitHub API " + response.status + " " + path + ": " + (await response.text()),
+    );
+    error.status = response.status;
+    throw error;
   }
   return response.status === 204 ? null : response.json();
+}
+
+async function graphql(query, variables) {
+  const result = await gh("/graphql", {
+    method: "POST",
+    body: JSON.stringify({ query, variables }),
+  });
+  if (result.errors) throw new Error("GitHub GraphQL: " + JSON.stringify(result.errors));
+  return result.data;
 }
 
 function parseCsv(text) {
@@ -445,10 +486,130 @@ async function startNext() {
   console.log("Assigned #" + next.number + " to Copilot.");
 }
 
-const commands = { import: importBatch, next: startNext };
+async function copilotFinished(pr) {
+  let latest = null;
+  for (let page = 1; page <= 10; page++) {
+    const events = await gh(
+      "/repos/" + repo + "/issues/" + pr.number + "/timeline?per_page=100&page=" + page,
+    );
+    for (const item of events) {
+      if (item.event?.startsWith("copilot_work_")) latest = item.event;
+    }
+    if (events.length < 100) break;
+  }
+  return latest ? latest === "copilot_work_finished" : !pr.title.toUpperCase().startsWith("[WIP]");
+}
+
+async function requestFix(pr, reason) {
+  const comments = await gh("/repos/" + repo + "/issues/" + pr.number + "/comments?per_page=100");
+  const requests = comments.filter((comment) => comment.body?.includes(fixMarker));
+  if (requests.length >= maxFixRequests || requests.some((c) => c.body.includes(pr.head.sha))) {
+    console.log("#" + pr.number + " needs a person: " + reason);
+    return;
+  }
+  await gh("/repos/" + repo + "/issues/" + pr.number + "/comments", {
+    method: "POST",
+    body: JSON.stringify({
+      body:
+        "@copilot " +
+        reason +
+        " Fix it, run npm run verify and npm run build, and push.\\n\\n" +
+        fixMarker +
+        " " +
+        pr.head.sha +
+        " -->",
+    }),
+  });
+  console.log("Asked Copilot to fix #" + pr.number + ".");
+}
+
+async function startCi(pr) {
+  try {
+    await gh("/repos/" + repo + "/actions/workflows/ci.yml/dispatches", {
+      method: "POST",
+      body: JSON.stringify({ ref: pr.head.ref }),
+    });
+    console.log("Started CI for #" + pr.number + ".");
+  } catch (error) {
+    if (error.status !== 422) throw error;
+    // Branches cut before CI accepted workflow_dispatch get it from base.
+    await gh("/repos/" + repo + "/pulls/" + pr.number + "/update-branch", {
+      method: "PUT",
+      body: JSON.stringify({ expected_head_sha: pr.head.sha }),
+    });
+    console.log("Updated #" + pr.number + " from " + pr.base.ref + " to run CI.");
+  }
+}
+
+async function merge(pr) {
+  try {
+    await gh("/repos/" + repo + "/pulls/" + pr.number + "/merge", {
+      method: "PUT",
+      body: JSON.stringify({ merge_method: "squash", sha: pr.head.sha }),
+    });
+  } catch (error) {
+    if (error.status === 405) {
+      await requestFix(pr, "This pull request can't merge into " + pr.base.ref + "; merge " + pr.base.ref + " and resolve conflicts.");
+      return;
+    }
+    if (error.status === 409) {
+      console.log("#" + pr.number + " changed while merging; the next run picks it up.");
+      return;
+    }
+    throw error;
+  }
+  await gh("/repos/" + repo + "/git/refs/heads/" + pr.head.ref, { method: "DELETE" }).catch(() => {});
+  console.log("Merged #" + pr.number + "; Vercel deploys production.");
+}
+
+async function shipPull(pr) {
+  if (!(await copilotFinished(pr))) {
+    console.log("#" + pr.number + ": Copilot is still working.");
+    return;
+  }
+  if (pr.draft) {
+    await graphql(
+      "mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { clientMutationId } }",
+      { id: pr.node_id },
+    );
+    console.log("Marked #" + pr.number + " ready for review.");
+  }
+  // Copilot-triggered runs wait for approval; only runs started by a person count.
+  const { workflow_runs } = await gh(
+    "/repos/" + repo + "/actions/workflows/ci.yml/runs?head_sha=" + pr.head.sha + "&per_page=50",
+  );
+  const runs = workflow_runs.filter((run) => run.conclusion !== "action_required");
+  if (runs.some((run) => run.conclusion === "success")) return merge(pr);
+  if (runs.some((run) => run.status !== "completed")) {
+    console.log("#" + pr.number + ": waiting for CI.");
+    return;
+  }
+  const failed = runs.find((run) => ["failure", "timed_out"].includes(run.conclusion));
+  if (failed) {
+    return requestFix(pr, "CI failed on " + pr.head.sha.slice(0, 7) + ": " + failed.html_url + ".");
+  }
+  await startCi(pr);
+}
+
+async function ship() {
+  if (process.env.AUTO_MERGE === "false") {
+    console.log("Auto-merge is off (FEATURE_AUTO_MERGE=false).");
+    return;
+  }
+  const pulls = await gh("/repos/" + repo + "/pulls?state=open&per_page=100");
+  for (const pr of pulls.filter((p) => p.user.login.toLowerCase().includes("copilot"))) {
+    try {
+      await shipPull(pr);
+    } catch (error) {
+      console.error("#" + pr.number + ": " + error.message);
+    }
+  }
+}
+
+const commands = { import: importBatch, next: startNext, ship };
 const command = commands[process.argv[2]];
 if (!command) {
-  console.error("Usage: node feature-queue.mjs import|next");
+  console.error("Usage: node feature-queue.mjs import|next|ship");
   process.exit(1);
 }
 await command();
@@ -479,6 +640,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  # The Feature queue dispatches CI on Copilot branches so runs skip approval.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -582,8 +745,10 @@ A Next.js app provisioned by AI Code Factory.
 
 1. Add a feature from the AI Code Factory dashboard, or open a Feature request issue and add the \`feature-queue\` label.
 2. The Feature queue workflow assigns queued features to GitHub Copilot one at a time.
-3. Review the pull request Copilot opens; CI runs verify and build, and Vercel posts a preview.
-4. Merge when ready. Closing the issue starts the next queued feature, and Vercel deploys production.
+3. When Copilot finishes, the queue marks its pull request ready and runs CI (verify and build); Vercel posts a preview.
+4. When CI passes, the queue squash-merges the pull request, Vercel deploys production, and the next queued feature starts. If CI fails or the branch conflicts, the queue asks Copilot to fix it (up to 3 times), then leaves it for you.
+
+Set the \`FEATURE_AUTO_MERGE\` repository variable to \`false\` to review and merge pull requests yourself.
 
 The factory copies a \`COPILOT_ASSIGN_TOKEN\` repository secret when it creates or repairs this repo; Copilot sessions bill to that token's owner. Pause the queue by setting the \`FEATURE_QUEUE_PAUSED\` repository variable to \`true\` (the dashboard does this for you).
 
