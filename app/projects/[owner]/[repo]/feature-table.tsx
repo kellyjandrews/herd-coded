@@ -1,4 +1,5 @@
 import type { CheckStatus, FeatureItem, FeatureState, Section } from "@/lib/server/types";
+import MergeButton from "./merge-button";
 
 const stateLabels: Record<FeatureState, string> = {
   open: "Open",
@@ -15,7 +16,13 @@ const checkLabels: Record<CheckStatus, string> = {
   none: "No checks",
 };
 
-export default function FeatureTable({ features }: { features: Section<FeatureItem[]> }) {
+export default function FeatureTable({
+  repository,
+  features,
+}: {
+  repository: string;
+  features: Section<FeatureItem[]>;
+}) {
   return (
     <section className="detail-card" aria-labelledby="features-title">
       <div className="section-heading">
@@ -52,6 +59,12 @@ export default function FeatureTable({ features }: { features: Section<FeatureIt
                       <a href={feature.pullRequest.preview.url} target="_blank" rel="noreferrer">
                         Preview ↗
                       </a>
+                    )}
+                    {feature.state === "pr-open" && (
+                      <MergeButton
+                        repository={repository}
+                        pullRequest={feature.pullRequest.number}
+                      />
                     )}
                   </div>
                 )}

@@ -57,13 +57,8 @@ describe("POST /api/features", () => {
     expect(provision.submitFeatureBatch).not.toHaveBeenCalled();
   });
 
-  it("queues a trimmed single feature and reports its position", async () => {
-    provision.submitFeature.mockResolvedValue({
-      number: 7,
-      url: "u",
-      queued: true,
-      position: 2,
-    });
+  it("creates a trimmed single feature awaiting approval", async () => {
+    provision.submitFeature.mockResolvedValue({ number: 7, url: "u" });
     const response = await post({
       repository: "acme/app",
       title: " Login ",
@@ -73,15 +68,18 @@ describe("POST /api/features", () => {
     expect(provision.submitFeature).toHaveBeenCalledWith("acme/app", "Login", "Do it");
     expect(await response.json()).toEqual({
       issue: { number: 7, url: "u" },
-      queued: true,
-      position: 2,
+      awaitingApproval: true,
     });
   });
 
   it("accepts long Markdown feature details up to 60,000 characters", async () => {
-    provision.submitFeature.mockResolvedValue({ number: 12, url: "u", queued: true });
+    provision.submitFeature.mockResolvedValue({ number: 12, url: "u" });
     const details = `# Feature\n\n${"x".repeat(60000 - 11)}`;
-    const response = await post({ repository: "acme/app", title: "Long feature", details });
+    const response = await post({
+      repository: "acme/app",
+      title: "Long feature",
+      details,
+    });
     expect(response.status).toBe(201);
     expect(provision.submitFeature).toHaveBeenCalledWith("acme/app", "Long feature", details);
   });

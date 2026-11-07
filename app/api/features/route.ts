@@ -69,13 +69,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { queued, position, ...issue } = await submitFeature(
-      repository,
-      title.trim(),
-      details.trim(),
-    );
+    const issue = await submitFeature(repository, title.trim(), details.trim());
     return Response.json(
-      { issue, queued, position },
+      { issue, awaitingApproval: true },
       { status: 201, headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

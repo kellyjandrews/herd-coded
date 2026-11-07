@@ -59,8 +59,6 @@ export default function FactoryDashboard() {
         number: number;
         url: string;
         batch?: boolean;
-        queued?: boolean;
-        position?: number;
       }
     >
   >({});
@@ -150,8 +148,6 @@ export default function FactoryDashboard() {
       const body = (await response.json()) as {
         issue?: { number: number; url: string };
         batch?: boolean;
-        queued?: boolean;
-        position?: number;
         error?: string;
       };
       const issue = body.issue;
@@ -159,12 +155,7 @@ export default function FactoryDashboard() {
         throw new Error(body.error ?? "Could not create the feature issue.");
       setFeatureResults((current) => ({
         ...current,
-        [repository]: {
-          ...issue,
-          batch: body.batch,
-          queued: body.queued,
-          position: body.position,
-        },
+        [repository]: { ...issue, batch: body.batch },
       }));
       setFeatureTitle("");
       setFeatureDetails("");
@@ -555,10 +546,8 @@ export default function FactoryDashboard() {
                       {featureResults[project.repository] && (
                         <p className="feature-result">
                           {featureResults[project.repository].batch
-                            ? "Queued feature batch "
-                            : featureResults[project.repository].queued
-                              ? "Queued "
-                              : "Assigned directly to Copilot: "}
+                            ? "Submitted feature batch "
+                            : "Created "}
                           <a
                             href={featureResults[project.repository].url}
                             target="_blank"
@@ -567,13 +556,9 @@ export default function FactoryDashboard() {
                             issue #{featureResults[project.repository].number}
                           </a>
                           {featureResults[project.repository].batch
-                            ? ". The Feature queue workflow creates an issue per row and assigns Copilot one at a time."
-                            : featureResults[project.repository].queued
-                              ? featureResults[project.repository].position
-                                ? ` at position ${featureResults[project.repository].position}.`
-                                : "."
-                              : ". This project has no feature queue."}{" "}
-                          <Link href={`/projects/${project.repository}`}>Track progress →</Link>
+                            ? ". The Feature queue workflow creates an issue per row; approve them on the project page."
+                            : ". Approve it on the project page to start Copilot."}{" "}
+                          <Link href={`/projects/${project.repository}`}>Review and approve →</Link>
                         </p>
                       )}
                       {featureRepo === project.repository ? (
@@ -609,8 +594,8 @@ export default function FactoryDashboard() {
                                 onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
                               />
                               <p className="field-hint">
-                                Header row: title,body,labels. Up to 50 rows. Copilot builds them
-                                one at a time.
+                                Header row: title,body,labels. Up to 50 rows. Each row awaits
+                                approval, then Copilot builds them one at a time.
                               </p>
                             </>
                           ) : (
@@ -651,10 +636,10 @@ export default function FactoryDashboard() {
                               disabled={submittingFeature}
                             >
                               {submittingFeature
-                                ? "Queuing…"
+                                ? "Submitting…"
                                 : featureMode === "csv"
-                                  ? "Queue batch for Copilot"
-                                  : "Add to Copilot queue"}
+                                  ? "Submit batch for approval"
+                                  : "Submit for approval"}
                             </button>
                           </div>
                         </form>
@@ -711,9 +696,9 @@ export default function FactoryDashboard() {
             <div>
               <h2>Build remotely with Copilot</h2>
               <p>
-                Open a feature issue in any project repo, describe the requested behavior and
-                acceptance criteria, then assign it to GitHub Copilot. It works in a remote
-                environment and opens a pull request for review.
+                Add a feature here or open a feature issue in any project repo, then approve it on
+                the project page. Copilot builds approved features one at a time in a remote
+                environment, and pull requests that pass CI merge and deploy automatically.
               </p>
             </div>
             <a

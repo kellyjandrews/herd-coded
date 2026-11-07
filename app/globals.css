@@ -790,6 +790,7 @@ textarea:focus {
 .feature-pr {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
   font-size: 12px;
 }
@@ -828,6 +829,23 @@ textarea:focus {
 .queue-form {
   margin-top: 16px;
   max-width: none;
+}
+.button-small {
+  min-height: 0;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.approval-list {
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.approval-list h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.approval-list .queue-actions {
+  margin-left: auto;
 }
 .project-title-line h3 a {
   color: var(--ink);
