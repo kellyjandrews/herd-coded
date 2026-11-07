@@ -87,6 +87,7 @@ This app uses Next.js 16. Read the relevant guide under node_modules/next/dist/d
   ".github/copilot-instructions.md": `# Project instructions
 
 - Implement only the feature requested in the issue; do not infer extra product work.
+- Write all user-facing text, seed data, and code comments in US English unless the issue explicitly asks for another language.
 - Keep changes small, preserve app behavior, and use existing patterns.
 - Run npm run verify and npm run build before opening a pull request.
 - Never commit secrets, change production settings, or deploy directly.
@@ -376,7 +377,7 @@ async function startNext() {
         target_repo: repo,
         base_branch: default_branch,
         custom_instructions:
-          "Implement only this issue, run npm run verify and npm run build, and open a pull request that closes it.",
+          "Implement only this issue, write all user-facing text in US English unless the issue says otherwise, run npm run verify and npm run build, and open a pull request that closes it.",
       },
     }),
   });

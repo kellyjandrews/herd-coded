@@ -304,7 +304,7 @@ export async function createCopilotFeatureIssue(
           target_repo: repo.full_name,
           base_branch: repo.default_branch,
           custom_instructions:
-            "Implement only this issue, run npm run verify and npm run build, and open a pull request.",
+            "Implement only this issue, write all user-facing text in US English unless the issue says otherwise, run npm run verify and npm run build, and open a pull request.",
         },
       }),
     },
