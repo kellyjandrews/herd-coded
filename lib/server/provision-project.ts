@@ -1,6 +1,7 @@
 import { appTemplateFiles } from "@/lib/server/app-template";
 
 interface GitHubRepository {
+  id: number;
   full_name: string;
   html_url: string;
   default_branch: string;
@@ -150,6 +151,49 @@ async function pushTemplate(repository: GitHubRepository, token: string): Promis
     method: "PUT",
     body: JSON.stringify({ names: ["ai-code-factory", "factory-app"] }),
   });
+  // Issue forms only apply labels that already exist.
+  for (const label of [
+    { name: "feature", color: "0052cc", description: "Feature to build" },
+    {
+      name: "feature-batch",
+      color: "c084fc",
+      description: "CSV of features to queue",
+    },
+    {
+      name: "feature-queue",
+      color: "0e8a16",
+      description: "Queued for Copilot, one at a time",
+    },
+  ]) {
+    await githubRequest(`${base}/labels`, token, {
+      method: "POST",
+      body: JSON.stringify(label),
+    });
+  }
+}
+
+async function vercelRequest<T>(path: string, token: string, body: unknown): Promise<T> {
+  const teamId = process.env.VERCEL_TEAM_ID?.trim();
+  const query = teamId ? `?teamId=${encodeURIComponent(teamId)}` : "";
+  const response = await fetch(`https://api.vercel.com${path}${query}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as {
+      error?: { message?: string };
+    } | null;
+    throw new Error(
+      error?.error?.message ?? `Vercel API ${response.status}: ${response.statusText}`,
+    );
+  }
+  return (await response.json()) as T;
 }
 
 async function createVercelProject(
@@ -157,37 +201,25 @@ async function createVercelProject(
   repository: GitHubRepository,
   token: string,
 ): Promise<string> {
-  const teamId = process.env.VERCEL_TEAM_ID?.trim();
-  const query = teamId ? `?teamId=${encodeURIComponent(teamId)}` : "";
-  const response = await fetch(`https://api.vercel.com/v11/projects${query}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      name: input.name,
-      framework: "nextjs",
-      outputDirectory: null,
-      gitRepository: { type: "github", repo: repository.full_name },
-    }),
-    cache: "no-store",
+  const project = await vercelRequest<{ name?: string }>("/v11/projects", token, {
+    name: input.name,
+    framework: "nextjs",
+    outputDirectory: null,
+    gitRepository: { type: "github", repo: repository.full_name },
   });
-
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as {
-      error?: { message?: string };
-    } | null;
-    throw new Error(
-      body?.error?.message ?? `Vercel API ${response.status}: ${response.statusText}`,
-    );
-  }
-
-  const project = (await response.json()) as {
-    name?: string;
-    link?: { repo?: string };
-  };
   if (!project.name) throw new Error("Vercel created the project but returned no project name.");
+
+  // The template commit landed before the project was linked, so Vercel won't build it on its own.
+  await vercelRequest("/v13/deployments", token, {
+    name: project.name,
+    project: project.name,
+    target: "production",
+    gitSource: {
+      type: "github",
+      repoId: repository.id,
+      ref: repository.default_branch,
+    },
+  });
   return `https://${project.name}.vercel.app`;
 }
 
