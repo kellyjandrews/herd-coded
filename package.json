@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -15,6 +17,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "verify": "npm run lint && npm run typecheck && npm run test",
+    "create-app": "tsx scripts/factory/create-app.ts",
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {

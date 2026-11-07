@@ -1,13 +1,12 @@
 # AI Code Factory
 
-This is a hackathon-first Next.js starter. Optimize for a demoable, deployed proof of concept, then iterate. Work starts with a measurable business outcome. Copilot may suggest features, but suggestions are not approved work. Delivery plans and reports are handed between stages through `specs/<slug>/`; treat those files as the source of truth.
+This is a hackathon-first Next.js starter and the AI Code Factory dashboard. Optimize for a demoable, deployed proof of concept, then iterate. Work is driven by features. Delivery plans and reports are handed between stages through `specs/<slug>/`; treat those files as the source of truth.
 
 ## Workflow
 
-- Start a project with `/kickoff`, which writes `docs/brief.md`, an outcome, and a stack recommendation.
-- Use `/outcome` to create a measurable outcome and ranked proposals. Keep proposals labeled `proposal`; never implement one until a human applies the `approved` label.
-- Run `/feature #<issue>` only for an issue labeled `approved` and either `proposal` or `feature`. Link every plan to its source outcome.
-- Plan each approved feature in `specs/<slug>/plan.md` before implementation. Keep a feature to about six tasks or fewer; split larger work.
+- Start a project with `/kickoff`, which writes `docs/brief.md` and a stack recommendation.
+- Run `/feature <description>` or `/feature #<issue>` locally, or assign a feature issue to Copilot to have it build remotely and open a PR.
+- Plan each feature in `specs/<slug>/plan.md` before implementation. Keep a feature to about six tasks or fewer; split larger work.
 - Implement one task at a time, keeping the app runnable. Record progress in `specs/<slug>/build-log.md`.
 - Add tests against the plan's acceptance criteria and write `specs/<slug>/test-report.md`.
 - Review the diff and write `specs/<slug>/review.md` with a `SHIP` or `FIX` verdict before shipping.
@@ -38,7 +37,8 @@ This is a hackathon-first Next.js starter. Optimize for a demoable, deployed pro
 - `app/`: Next.js App Router application and API routes.
 - `tests/unit/`, `tests/e2e/`: Vitest and Playwright tests.
 - `.github/agents/`: reusable Copilot roles.
-- `.github/prompts/`: VS Code Copilot slash prompts for factory stages; run these in a Local session.
-- `.github/ISSUE_TEMPLATE/`: outcome, proposal, approved-feature, bug, and incident forms; labels distinguish type from approval state.
+- `.github/prompts/`: VS Code Copilot slash prompts for factory stages.
+- `.github/ISSUE_TEMPLATE/`: feature, bug, and incident forms.
+- `app/factory-dashboard.tsx`, `app/api/projects/`, `app/api/features/`, `lib/server/`: factory dashboard (Basic Auth via `proxy.ts`) that creates GitHub + Vercel projects and Copilot-assigned feature issues.
 - `specs/_template/plan.md`: required feature-plan structure.
 - `infra/terraform/`: Vercel and GitHub deployment configuration.

@@ -37,6 +37,7 @@ if ! npx vercel project inspect "$NAME" --json --token="$VTOKEN" "${VERCEL_SCOPE
   npx vercel project create "$NAME" --token="$VTOKEN" "${VERCEL_SCOPE_ARGS[@]}"
 fi
 npx vercel link --yes --project "$NAME" --token="$VTOKEN" "${VERCEL_SCOPE_ARGS[@]}"
+npx vercel project update --framework nextjs --auto-detect output-directory --yes --token="$VTOKEN" "${VERCEL_SCOPE_ARGS[@]}"
 VERCEL_ORG_ID=$(node -p "require('./.vercel/project.json').orgId")
 VERCEL_PROJECT_ID=$(node -p "require('./.vercel/project.json').projectId")
 
@@ -55,10 +56,7 @@ fi
 
 echo "── Factory issue labels ──"
 gh label create factory --color c084fc --description "AI code factory work" --force --repo "$OWNER/$NAME"
-gh label create outcome --color 1d76db --description "Business outcome" --force --repo "$OWNER/$NAME"
-gh label create proposal --color 0e8a16 --description "Suggested work; not approved for implementation" --force --repo "$OWNER/$NAME"
-gh label create approved --color 5319e7 --description "Explicitly approved to enter the delivery workflow" --force --repo "$OWNER/$NAME"
-gh label create feature --color 0052cc --description "Approved feature delivery" --force --repo "$OWNER/$NAME"
+gh label create feature --color 0052cc --description "Feature to build" --force --repo "$OWNER/$NAME"
 gh label create bug --color d93f0b --description "Confirmed product defect" --force --repo "$OWNER/$NAME"
 gh label create incident --color b60205 --description "Runtime incident requiring triage" --force --repo "$OWNER/$NAME"
 
@@ -75,6 +73,6 @@ Factory ready.
     CLI example: npx vercel env add API_KEY --environment production,preview --sensitive
   • Keep workflow credentials in GitHub Actions secrets; Vercel values are not available to Actions.
   • Protect the main branch in GitHub Settings and require the verify check.
-  • In VS Code Copilot Chat (Local Agent mode), run /kickoff or /outcome.
-  • Continue in VS Code Copilot Chat with a Local session; no cloud coding agent is required.
+  • Open the factory dashboard to create apps and assign feature issues to Copilot.
+  • Or, in VS Code Copilot Chat (Agent mode), run /kickoff or /feature <description>.
 EOF

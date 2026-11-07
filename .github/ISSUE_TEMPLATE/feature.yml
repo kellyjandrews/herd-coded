@@ -1,29 +1,20 @@
-name: Approved feature work
-description: Submit approved implementation work linked to a business outcome and proposal.
+name: Feature
+description: Describe a feature to build. Assign it to Copilot to have a pull request opened.
 title: "[Feature]: "
-labels: [factory, feature, approved]
+labels: [factory, feature]
 body:
   - type: textarea
-    id: outcome
+    id: summary
     attributes:
-      label: Parent outcome
-      description: Link the GitHub issue or outcome document and its success measure.
-      placeholder: "Outcome issue #123; improve successful onboarding from 40% to 65%."
-    validations:
-      required: true
-  - type: textarea
-    id: proposal
-    attributes:
-      label: Approved proposal
-      description: Link the proposal issue that was selected for implementation.
-      placeholder: "Proposal issue #456"
+      label: What should users be able to do?
+      placeholder: "Users can save a search and see it on their dashboard."
     validations:
       required: true
   - type: textarea
     id: acceptance
     attributes:
       label: Acceptance criteria
-      description: Describe observable behavior that proves the outcome can improve.
+      description: Describe observable behavior in the UI or API.
       placeholder: "Given ..., when ..., then ..."
     validations:
       required: true
