@@ -31,8 +31,8 @@ export default async function ProjectPage({
   return (
     <main className="detail-shell">
       <div className="page-content">
-        <Link className="back-link" href="/">
-          ← Projects
+        <Link className="back-link" href="/#project-list">
+          ← All projects
         </Link>
         {activity ? (
           <>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type FactoryProject = {
   name: string;
@@ -40,6 +40,7 @@ export default function FactoryDashboard() {
   const [owner, setOwner] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
+  const projectNameRef = useRef<HTMLInputElement>(null);
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -47,6 +48,7 @@ export default function FactoryDashboard() {
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<"private" | "public">("private");
   const [featureRepo, setFeatureRepo] = useState<string | null>(null);
+  const [selectedProject, setSelectedProject] = useState("");
   const [featureTitle, setFeatureTitle] = useState("");
   const [featureDetails, setFeatureDetails] = useState("");
   const [featureMode, setFeatureMode] = useState<"single" | "csv">("single");
@@ -91,6 +93,10 @@ export default function FactoryDashboard() {
     void loadProjects(controller.signal);
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (formOpen) projectNameRef.current?.focus();
+  }, [formOpen]);
 
   async function createProject(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -226,7 +232,7 @@ export default function FactoryDashboard() {
         </div>
         <nav className="side-nav" aria-label="Main navigation">
           <p className="nav-label">WORKSPACE</p>
-          <a className="nav-item nav-item-active" href="#projects">
+          <a className="nav-item nav-item-active" href="#project-list">
             <span className="nav-icon" aria-hidden="true">
               ▦
             </span>{" "}
@@ -265,7 +271,7 @@ export default function FactoryDashboard() {
           <div className="breadcrumbs">
             <span>Workspace</span>
             <span className="crumb-divider">/</span>
-            <strong>Projects</strong>
+            <strong>Overview</strong>
           </div>
           <div className="topbar-actions">
             <span className="auth-badge">
@@ -280,12 +286,9 @@ export default function FactoryDashboard() {
         <div className="page-content">
           <section className="page-heading">
             <div>
-              <p className="eyebrow">
-                APP FACTORY <span className="eyebrow-line" />
-              </p>
-              <h1 data-testid="hero-title">Projects</h1>
+              <h1 data-testid="hero-title">What would you like to work on?</h1>
               <p className="heading-subtitle">
-                Create an app workspace. Copilot can build the features in its GitHub repo.
+                Start a feature request or check in on your projects.
               </p>
             </div>
             <button
@@ -295,7 +298,7 @@ export default function FactoryDashboard() {
                 setFormOpen(true);
                 setError("");
               }}
-              disabled={configured === false}
+              disabled={configured !== true}
             >
               <span className="button-plus" aria-hidden="true">
                 +
@@ -304,29 +307,58 @@ export default function FactoryDashboard() {
             </button>
           </section>
 
-          <section className="stats-strip" aria-label="Workspace summary">
-            <div className="stat-item">
-              <span className="stat-label">PROJECTS</span>
-              <strong>{loading ? "—" : projects.length.toString().padStart(2, "0")}</strong>
+          <section className="start-panel" aria-label="Get started">
+            <div className="start-feature">
+              <h2>Create a feature request</h2>
+              <p>Choose a project and describe what you want to build.</p>
+              {loading ? (
+                <p className="start-hint" role="status">
+                  Loading projects…
+                </p>
+              ) : projects.length > 0 ? (
+                <div className="start-controls">
+                  <label className="sr-only" htmlFor="feature-project">
+                    Choose a project for your feature request
+                  </label>
+                  <select
+                    id="feature-project"
+                    value={selectedProject}
+                    onChange={(event) => setSelectedProject(event.target.value)}
+                  >
+                    <option value="">Choose a project</option>
+                    {projects.map((project) => (
+                      <option key={project.repository} value={project.repository}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedProject ? (
+                    <Link
+                      className="button button-primary"
+                      href={`/projects/${selectedProject}#new-feature`}
+                    >
+                      Continue <span aria-hidden="true">→</span>
+                    </Link>
+                  ) : (
+                    <button className="button button-primary" type="button" disabled>
+                      Continue <span aria-hidden="true">→</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <p className="start-hint">
+                  {configured === null
+                    ? "Projects are unavailable. Refresh the page to try again."
+                    : "Create a project first to request a feature."}
+                </p>
+              )}
             </div>
-            <div className="stat-divider" />
-            <div className="stat-item">
-              <span className="stat-label">HOSTING</span>
-              <strong className="stat-word">Vercel</strong>
-            </div>
-            <div className="stat-divider" />
-            <div className="stat-item">
-              <span className="stat-label">BUILD AGENT</span>
-              <strong className="stat-word">
-                Copilot <span className="remote-ready">REMOTE</span>
-              </strong>
-            </div>
-            <div className="stat-spacer" />
-            <div className="cost-note">
-              <span className="cost-spark" aria-hidden="true">
-                ✳
-              </span>{" "}
-              Free-tier setup
+            <div className="start-projects">
+              <h2>Explore your projects</h2>
+              <p>See your projects, open their activity, or visit the live app.</p>
+              <a className="button button-secondary" href="#project-list">
+                View all projects <span aria-hidden="true">→</span>
+              </a>
             </div>
           </section>
 
@@ -377,6 +409,7 @@ export default function FactoryDashboard() {
                   Project name
                 </label>
                 <input
+                  ref={projectNameRef}
                   id="project-name"
                   name="name"
                   required
@@ -464,7 +497,7 @@ export default function FactoryDashboard() {
             </section>
           )}
 
-          <section className="projects-section" aria-labelledby="projects-title">
+          <section className="projects-section" id="project-list" aria-labelledby="projects-title">
             <div className="section-heading">
               <h2 id="projects-title">Your projects</h2>
               <span className="section-count">
@@ -475,6 +508,10 @@ export default function FactoryDashboard() {
               <div className="loading-row">
                 <span className="spinner spinner-dark" /> Loading projects…
               </div>
+            ) : configured === null ? (
+              <p className="section-empty">
+                Could not load projects. Refresh the page to try again.
+              </p>
             ) : projects.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-art" aria-hidden="true">
@@ -498,7 +535,7 @@ export default function FactoryDashboard() {
                     setFormOpen(true);
                     setError("");
                   }}
-                  disabled={configured === false}
+                  disabled={configured !== true}
                 >
                   Create your first project <span aria-hidden="true">→</span>
                 </button>
