@@ -548,6 +548,10 @@ textarea:focus {
   color: var(--muted);
   font-size: 13px;
 }
+.project-main > .project-description {
+  color: inherit;
+  font-size: 14px;
+}
 .project-title-line {
   display: flex;
   align-items: center;

@@ -1,3 +1,4 @@
+import { describeApp } from "@/lib/server/app-prompt";
 import { appTemplateFiles } from "@/lib/server/app-template";
 import {
   GitHubError,
@@ -293,7 +294,9 @@ export async function provisionProject(input: CreateProjectInput): Promise<Facto
   if (input.visibility !== "private" && input.visibility !== "public") {
     throw new Error("Choose private or public repository visibility.");
   }
-  if (usingMocks()) return mockCreateProject({ ...input, name });
+  const prompt = input.prompt?.trim();
+  const description = input.description?.trim() || (prompt ? await describeApp(prompt) : undefined);
+  if (usingMocks()) return mockCreateProject({ ...input, name, description });
 
   const owner = requiredEnv("FACTORY_GITHUB_OWNER");
   const token = githubToken();
@@ -301,7 +304,11 @@ export async function provisionProject(input: CreateProjectInput): Promise<Facto
   let repo: GitHubRepository | undefined;
 
   try {
-    repo = await createOrReuseRepository(owner, token, { ...input, name });
+    repo = await createOrReuseRepository(owner, token, {
+      ...input,
+      name,
+      description,
+    });
     // Tag first so a failed run still shows up on the dashboard for repair.
     await setTopics(repo, token);
     if (!(await repositoryFileExists(repo.full_name, "package.json", token))) {

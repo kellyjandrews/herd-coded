@@ -5,6 +5,7 @@ export interface FactoryProject {
   httpsCloneUrl: string;
   sshCloneUrl: string;
   cloneCommand: string;
+  description?: string;
   productionUrl?: string;
   createdAt?: string;
   visibility?: "private" | "public";
@@ -16,6 +17,7 @@ export type RepairStep = "template" | "workflow" | "labels" | "vercel" | "secret
 export interface CreateProjectInput {
   name: string;
   description?: string;
+  prompt?: string;
   visibility: "private" | "public";
 }
 

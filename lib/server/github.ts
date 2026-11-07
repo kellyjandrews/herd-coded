@@ -9,6 +9,7 @@ export interface GitHubRepository {
   clone_url: string;
   ssh_url: string;
   private: boolean;
+  description?: string | null;
   topics?: string[];
   created_at?: string;
 }
@@ -147,6 +148,7 @@ export function toFactoryProject(repo: GitHubRepository, productionUrl?: string)
     httpsCloneUrl: repo.clone_url,
     sshCloneUrl: repo.ssh_url,
     cloneCommand: `gh repo clone ${repo.full_name}`,
+    description: repo.description || undefined,
     productionUrl,
     createdAt: repo.created_at,
     visibility: repo.private ? "private" : "public",

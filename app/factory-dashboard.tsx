@@ -10,6 +10,7 @@ type FactoryProject = {
   httpsCloneUrl: string;
   sshCloneUrl: string;
   cloneCommand: string;
+  description?: string;
   productionUrl?: string;
   createdAt?: string;
   visibility?: "private" | "public";
@@ -44,7 +45,7 @@ export default function FactoryDashboard() {
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+  const [prompt, setPrompt] = useState("");
   const [visibility, setVisibility] = useState<"private" | "public">("private");
   const [featureRepo, setFeatureRepo] = useState<string | null>(null);
   const [featureTitle, setFeatureTitle] = useState("");
@@ -59,6 +60,8 @@ export default function FactoryDashboard() {
         number: number;
         url: string;
         batch?: boolean;
+        mvp?: boolean;
+        queued?: boolean;
       }
     >
   >({});
@@ -101,11 +104,13 @@ export default function FactoryDashboard() {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description, visibility }),
+        body: JSON.stringify({ name, prompt, visibility }),
       });
       const body = (await response.json()) as {
         project?: FactoryProject;
         partialProject?: FactoryProject;
+        mvp?: { number: number; url: string; queued: boolean };
+        mvpError?: string;
         error?: string;
       };
       if (!response.ok) {
@@ -119,8 +124,15 @@ export default function FactoryDashboard() {
           created,
           ...current.filter((project) => project.repository !== created.repository),
         ]);
+      const mvp = body.mvp;
+      if (created && mvp)
+        setFeatureResults((current) => ({
+          ...current,
+          [created.repository]: { ...mvp, mvp: true },
+        }));
+      if (body.mvpError) setError(`Project created, but the MVP issue failed: ${body.mvpError}`);
       setName("");
-      setDescription("");
+      setPrompt("");
       setVisibility("private");
       setFormOpen(false);
     } catch (createError) {
@@ -391,18 +403,22 @@ export default function FactoryDashboard() {
                   Lowercase letters, numbers, and dashes. This becomes the GitHub repo and Vercel
                   project name.
                 </p>
-                <label className="field-label" htmlFor="project-description">
-                  Description <span>OPTIONAL</span>
+                <label className="field-label" htmlFor="project-prompt">
+                  What should this app do? <span>OPTIONAL</span>
                 </label>
                 <textarea
-                  id="project-description"
-                  name="description"
-                  rows={2}
-                  maxLength={350}
-                  placeholder="A short note about this app"
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
+                  id="project-prompt"
+                  name="prompt"
+                  rows={5}
+                  maxLength={8000}
+                  placeholder="A recipe box where I can save recipes from a URL, plan meals for the week, and get a shopping list."
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
                 />
+                <p className="field-hint">
+                  The factory writes the repo description from this and queues an MVP build for
+                  Copilot. Leave it blank for an empty starter.
+                </p>
                 <fieldset className="visibility-fieldset">
                   <legend className="field-label">Repository visibility</legend>
                   <div className="visibility-options">
@@ -532,6 +548,11 @@ export default function FactoryDashboard() {
                         )}
                       </div>
                       <p>{project.repository}</p>
+                      {project.description && (
+                        <p className="project-description" data-testid="project-description">
+                          {project.description}
+                        </p>
+                      )}
                       <div className="clone-route">
                         <code>{project.cloneCommand}</code>
                         <button
@@ -544,10 +565,14 @@ export default function FactoryDashboard() {
                         </button>
                       </div>
                       {featureResults[project.repository] && (
-                        <p className="feature-result">
+                        <p className="feature-result" data-testid="feature-result">
                           {featureResults[project.repository].batch
                             ? "Submitted feature batch "
-                            : "Created "}
+                            : featureResults[project.repository].mvp
+                              ? featureResults[project.repository].queued
+                                ? "Queued MVP build "
+                                : "Created MVP "
+                              : "Created "}
                           <a
                             href={featureResults[project.repository].url}
                             target="_blank"
@@ -557,8 +582,14 @@ export default function FactoryDashboard() {
                           </a>
                           {featureResults[project.repository].batch
                             ? ". The Feature queue workflow creates an issue per row; approve them on the project page."
-                            : ". Approve it on the project page to start Copilot."}{" "}
-                          <Link href={`/projects/${project.repository}`}>Review and approve →</Link>
+                            : featureResults[project.repository].queued
+                              ? ". Copilot starts building it shortly."
+                              : ". Approve it on the project page to start Copilot."}{" "}
+                          <Link href={`/projects/${project.repository}`}>
+                            {featureResults[project.repository].queued
+                              ? "Track progress →"
+                              : "Review and approve →"}
+                          </Link>
                         </p>
                       )}
                       {featureRepo === project.repository ? (
