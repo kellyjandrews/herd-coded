@@ -5,9 +5,8 @@ Slug: `<slug>` · Status: READY | BLOCKED · Estimate: <minutes>
 ## Goal
 One or two sentences: what the user can do after this ships.
 
-## Outcome and approved source
-Outcome: <outcome issue or document and success measure>
-Approved proposal: <proposal issue, approved feature issue, or None>
+## Source
+Issue: <feature issue link, or None>
 
 ## Acceptance criteria
 - [ ] **AC1** — Given …, when …, then …

@@ -1,13 +1,29 @@
 # 🏭 AI Code Factory
 
-A hackathon starter where Copilot starts from a measurable business outcome,
-suggests possible features for approval, then helps plan, build, test, review and
-ship approved work as a PR — with a live preview URL per PR and a gated production
-deploy on merge.
+A private dashboard that creates new apps (GitHub repo + Vercel project) and hands
+features to the GitHub Copilot cloud agent, which builds them and opens a pull request —
+with a live preview URL per PR and a gated production deploy on merge.
 
 ```
-/outcome  →  proposals  →  approval  →  /feature #issue  →  PR  →  preview  →  production
+Create app  →  New feature (issue assigned to Copilot)  →  PR  →  preview  →  merge  →  production
 ```
+
+## The factory dashboard
+
+The deployed app is the factory. It is protected with HTTP Basic Auth (`proxy.ts`);
+`/api/health` stays public for smoke tests.
+
+1. **Create project** — creates a GitHub repo from a Next.js template, tags it
+   `factory-app`, and creates a linked Vercel project (free tier).
+2. **New feature** — on any project, describe the feature and acceptance criteria. The
+   factory opens an issue assigned to `copilot-swe-agent[bot]`; Copilot works remotely and
+   opens a PR. Requires a Copilot plan with the cloud agent enabled for the owner.
+3. **Clone** — copy the clone command to work locally instead.
+
+Set these Vercel environment variables on the factory project (see `.env.example`):
+`FACTORY_BASIC_AUTH_USERNAME`, `FACTORY_BASIC_AUTH_PASSWORD`, `FACTORY_GITHUB_OWNER`,
+`FACTORY_GITHUB_TOKEN`, `VERCEL_ACCESS_TOKEN`, and optionally `VERCEL_TEAM_ID`. Without the
+Basic Auth values, production returns 503.
 
 ## Quick start
 
@@ -20,10 +36,9 @@ npm run dev
 ```
 
 In Copilot Chat, choose Agent mode with the **Local** session target and run
-`/kickoff` or `/outcome` to start shaping the POC. The repository's Copilot roles are in
+`/kickoff` or `/feature <description>`. The repository's Copilot roles are in
 `.github/agents/`, and VS Code slash prompts are in `.github/prompts/`. No cloud
-credentials or Terraform are needed for local development. The factory workflow
-runs in your VS Code Copilot Local session; GitHub is used for issues, PRs, and CI.
+credentials are needed for local development.
 
 **Optional Vercel deployment:** This starter's GitHub Actions workflows deploy with
 the Vercel CLI. You need [`gh`](https://cli.github.com) logged in, a Vercel account,
@@ -38,22 +53,18 @@ owns deployments; don't also enable Vercel's Git-based deployment for the same p
 
 | Stage the brief asked for | How the factory does it |
 |---|---|
-| **Define the outcome** | `/outcome` captures a user, problem, baseline, target, time horizon, and constraints |
-| **Suggest possible work** | `Outcome Planner` ranks proposals by impact, effort, confidence, dependencies, and risk; suggestions do not start implementation |
-| **Approve work** | Add the `approved` label to a proposal or approved feature issue before `/feature #<issue>` |
 | **Fastest POC suggestions** | `Architect` custom agent writes `docs/stack.md`: demo moment, real-vs-mocked table, time-boxed milestones, ordered backlog, two alternative fast paths |
-| **Plan approved feature** | `Planner` → `specs/<slug>/plan.md` with Given/When/Then criteria and ≤6 tasks, linked to the source outcome |
+| **Remote feature build** | Dashboard → issue assigned to Copilot cloud agent → PR |
+| **Plan feature (local)** | `Planner` → `specs/<slug>/plan.md` with Given/When/Then criteria and ≤6 tasks |
 | **Build new feature** | `Builder` executes tasks one by one, `npm run verify` after each |
 | **Test new feature** | `Tester` maps every acceptance criterion to a Vitest/Playwright test |
 | **Commit & PR** | `Reviewer` (SHIP/FIX gate) → `Shipper` prepares the PR after your approval |
 | **Dev instance per PR** | `preview.yml`: Vercel deployment + optional Neon DB branch, health check, e2e against the live URL, sticky PR comment |
 | **Prod on merge** | `production.yml`: verify → deploy → smoke test the new SHA → **auto-rollback** if it fails |
 
-Run `/outcome <business goal>` to generate proposals. After approval, run `/feature #<issue>` for the full delivery line, or use `/plan`, `/build`, `/test`, and `/ship` on an approved issue.
+Run `/feature <description>` or `/feature #<issue>` for the full local delivery line, or use `/plan`, `/build`, `/test`, and `/ship`.
 
 ### Additions beyond the brief
-
-- **Local issue → PR workflow** — use `/feature #<issue>` in VS Code Copilot Local after approving a proposal. GitHub stores the issue and PR; workflow stages run in VS Code.
 - **Incident triage** — `/triage-error` redacts sensitive details, checks for likely duplicates, drafts an incident issue, and asks before submitting it. Automated runtime ingestion is not configured until a monitoring provider is chosen.
 - **Database branch per PR** (Neon, optional) — every preview has its own data; migrations run automatically.
 - **Database migration caution** — production migrations run before deployment; use backward-compatible migrations because a Vercel rollback does not revert the database schema.
@@ -79,10 +90,12 @@ long-running worker, GPU workload, or sponsor constraint.
 
 ```
 .github/copilot-instructions.md  factory rules Copilot uses in this repository
-.github/agents/               outcome-planner, architect, planner, builder, tester, reviewer, shipper, demo-coach
-.github/prompts/               /kickoff /outcome /feature /plan /build /test /triage-error /ship /demo /status /rollback
-.github/ISSUE_TEMPLATE/        outcome, proposal, approved feature, bug, incident
+.github/agents/               architect, planner, builder, tester, reviewer, shipper, demo-coach
+.github/prompts/               /kickoff /feature /plan /build /test /triage-error /ship /demo /status /rollback
+.github/ISSUE_TEMPLATE/        feature, bug, incident
 .github/workflows/            ci, preview, preview-cleanup, production, rollback
+app/factory-dashboard.tsx     factory UI; API in app/api/projects and app/api/features
+lib/server/                   Basic Auth, GitHub/Vercel provisioning, generated app template
 infra/terraform/              optional Terraform provisioning; not used by default bootstrap
 specs/_template/plan.md       the spec every feature starts from
 docs/                         brief.md, stack.md, decisions.md, demo.md, architecture/
@@ -102,11 +115,11 @@ app/ tests/                   minimal Next.js starter with /api/health, Vitest, 
 ## Architecture diagram
 
 `docs/architecture/FactoryDiagram.jsx` draws the factory with **arch-lib** — copy your
-`arch-lib/` folder next to it and render the component. It has outcome → proposal →
-approved feature, merge → production, and issue → PR flows with click-through details.
+`arch-lib/` folder next to it and render the component. It has local feature,
+merge → production, and issue → Copilot → PR flows with click-through details.
 
 ## Notes
 
-- VS Code Copilot Local is the factory runtime. GitHub is used for issue tracking, pull requests, and Actions deployment workflows.
+- GitHub hosts repos, issues, PRs, Actions, and the Copilot cloud agent; Vercel hosts the apps.
 - Runtime errors are not automatically ingested in this starter. Choose and configure a monitoring provider before enabling automated issue creation.
 - Previews require a Vercel login by default. For public judge access, change Vercel Deployment Protection in project settings; for protected previews, configure its automation bypass and add it as a GitHub Actions secret.

@@ -17,13 +17,6 @@ const DETAILS = {
     { label: "Asks", value: "Problem, demo moment, time box, team, surface, data & AI, hosting, constraints" },
     { label: "Writes", value: "docs/brief.md → architect writes docs/stack.md with 2 alternative fast paths" },
   ]},
-  outcome: { title: "/outcome", color: P.human, items: [
-    { label: "Defines", value: "Target user, baseline, measurable change, horizon, constraints" },
-    { label: "Suggests", value: "Ranked proposals; implementation waits for the approved label" },
-  ]},
-  outcomePlanner: { title: "Outcome Planner", color: P.agent, items: [
-    { label: "Writes", value: "Outcome brief and ranked proposal set; never implements suggestions" },
-  ]},
   architect: { title: "architect", color: P.agent, items: [
     { label: "Job", value: "Fastest credible path to a demo: stack, real vs mocked, milestones, backlog" },
   ]},
@@ -49,26 +42,24 @@ export default function FactoryDiagram() {
     <>
       <Diagram
         theme="dark" width={1100}
-        title="AI Code Factory" subtitle="Outcome → proposals → approval → plan → build → test → ship → production"
+        title="AI Code Factory" subtitle="Feature → plan → build → test → ship → production"
         flows={{
-          feature: { nodes: ["outcome", "outcome-planner", "issue", "planner", "builder", "tester", "reviewer", "shipper", "gh", "ci", "preview"], color: P.agent, label: "Outcome → feature" },
+          feature: { nodes: ["featurecmd", "planner", "builder", "tester", "reviewer", "shipper", "gh", "ci", "preview"], color: P.agent, label: "Local feature" },
           release: { nodes: ["gh", "ci", "prod", "smoke", "rollback"], color: P.ok, label: "Merge → prod" },
-          issue: { nodes: ["issue", "local-copilot", "gh", "ci", "preview", "review"], color: P.ai, label: "Issue → PR" },
+          issue: { nodes: ["issue", "remote-copilot", "gh", "ci", "preview", "review"], color: P.ai, label: "Issue → Copilot → PR" },
         }}
       >
         <FlowSelector position="inline" />
 
         <Layer label="Human" color={P.human}>
           <Node id="kickoff" label="/kickoff" sublabel="interview" color={P.human} width={W.md} height={H.node} onClick={open("kickoff")} />
-          <Node id="outcome" label="/outcome" sublabel="business goal" color={P.human} width={W.md} height={H.node} onClick={open("outcome")} />
-          <Node id="featurecmd" label="/feature #issue" sublabel="approved only" color={P.human} width={W.md} height={H.node} />
-          <Node id="issue" label="GitHub issue" sublabel="proposal / approved" color={P.human} width={W.md} height={H.node} />
+          <Node id="featurecmd" label="/feature" sublabel="local" color={P.human} width={W.md} height={H.node} />
+          <Node id="issue" label="Feature issue" sublabel="from dashboard" color={P.human} width={W.md} height={H.node} />
           <Node id="demo" label="/demo" sublabel="script + seed" color={P.human} width={W.md} height={H.node} />
         </Layer>
 
         <Layer label="Agents · Copilot" color={P.agent}>
-          <Node id="outcome-planner" label="outcome-planner" sublabel="proposal set" color={P.agent} width={W.sm} height={H.node} onClick={open("outcomePlanner")} />
-          <Node id="local-copilot" label="VS Code Copilot" sublabel="Local session" color={P.agent} width={W.sm} height={H.node} />
+          <Node id="remote-copilot" label="Copilot agent" sublabel="remote, opens PR" color={P.agent} width={W.sm} height={H.node} />
           <Node id="architect" label="architect" sublabel="stack.md" color={P.agent} width={W.sm} height={H.node} onClick={open("architect")} />
           <Node id="planner" label="planner" sublabel="plan.md" color={P.agent} width={W.sm} height={H.node} onClick={open("planner")} />
           <Node id="builder" label="builder" sublabel="code" color={P.agent} width={W.sm} height={H.node} onClick={open("builder")} />
@@ -98,16 +89,14 @@ export default function FactoryDiagram() {
         </Layer>
 
         <Connector from="kickoff" to="architect" label="brief.md" />
-        <Connector from="outcome" to="outcome-planner" />
-        <Connector from="outcome-planner" to="issue" label="suggestions" />
         <Connector from="featurecmd" to="planner" />
         <Connector from="planner" to="builder" side="right-left" />
         <Connector from="builder" to="tester" side="right-left" />
         <BiConnector from="tester" to="reviewer" side="right-left" labelReverse="FIX" spread={7} />
         <Connector from="reviewer" to="shipper" side="right-left" label="SHIP" labelDy={-12} />
         <Connector from="shipper" to="gh" />
-        <Connector from="issue" to="local-copilot" dashed />
-        <Connector from="local-copilot" to="gh" dashed side="left-right" />
+        <Connector from="issue" to="remote-copilot" dashed label="assigned" />
+        <Connector from="remote-copilot" to="gh" dashed side="left-right" />
         <Connector from="gh" to="ci" side="right-left" />
         <Connector from="ci" to="preview" />
         <Connector from="gh" to="review" dashed />
