@@ -63,9 +63,16 @@ export interface QueueItem {
   assignedToCopilot: boolean;
 }
 
+export interface PendingFeature {
+  number: number;
+  title: string;
+  url: string;
+}
+
 export interface QueueStatus {
   enabled: boolean;
   paused: boolean;
+  pending: PendingFeature[];
   items: QueueItem[];
 }
 

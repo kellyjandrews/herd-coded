@@ -60,15 +60,33 @@ export default function QueuePanel({
     if (result) {
       setTitle("");
       setDetails("");
+      const issue = result.issue as { number?: number } | undefined;
+      setMessage(`Created #${issue?.number ?? ""}. Approve it below to start Copilot.`);
+    }
+  }
+
+  async function approve(numbers: number[]) {
+    const result = await send(`/api/projects/${repository}/queue`, {
+      action: "approve",
+      issues: numbers,
+    });
+    if (result) {
       setMessage(
-        result.queued
-          ? `Queued${result.position ? ` at position ${result.position}` : ""}.`
-          : "Assigned to Copilot directly (this project has no feature queue).",
+        `Approved ${numbers.length === 1 ? `#${numbers[0]}` : `${numbers.length} features`}. Copilot builds them in queue order.`,
       );
     }
   }
 
+  async function reject(number: number) {
+    const result = await send(`/api/projects/${repository}/queue`, {
+      action: "reject",
+      issue: number,
+    });
+    if (result) setMessage(`Rejected #${number}; the issue is closed as not planned.`);
+  }
+
   const status = queue.ok ? queue.data : null;
+  const pending = status?.pending ?? [];
 
   return (
     <section className="detail-card" aria-labelledby="queue-title" data-testid="queue-panel">
@@ -114,13 +132,60 @@ export default function QueuePanel({
         )}
       </div>
 
+      {pending.length > 0 && (
+        <div className="approval-list" data-testid="approval-list">
+          <div className="section-heading">
+            <h3>Awaiting approval</h3>
+            {pending.length > 1 && (
+              <button
+                className="button button-secondary"
+                type="button"
+                disabled={busy}
+                onClick={() => void approve(pending.map((item) => item.number))}
+              >
+                Approve all
+              </button>
+            )}
+          </div>
+          <ul className="queue-list">
+            {pending.map((item) => (
+              <li key={item.number} data-testid="pending-item">
+                <a href={item.url} target="_blank" rel="noreferrer">
+                  #{item.number} {item.title}
+                </a>
+                <span className="queue-actions">
+                  <button
+                    className="button button-primary"
+                    type="button"
+                    disabled={busy}
+                    aria-label={`Approve #${item.number}`}
+                    onClick={() => void approve([item.number])}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    className="button button-secondary"
+                    type="button"
+                    disabled={busy}
+                    aria-label={`Reject #${item.number}`}
+                    onClick={() => void reject(item.number)}
+                  >
+                    Reject
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {!queue.ok ? (
         <p className="section-error" role="status">
           {queue.error}
         </p>
       ) : !queue.data.enabled ? (
         <p className="section-empty">
-          This project has no Feature queue workflow, so new features are assigned to Copilot
+          This project has no Feature queue workflow, so approved features are assigned to Copilot
           directly. Run Repair from the dashboard to add it.
         </p>
       ) : queue.data.items.length === 0 ? (
@@ -161,7 +226,7 @@ export default function QueuePanel({
         />
         <div className="create-actions">
           <button className="button button-primary" type="submit" disabled={busy}>
-            {busy ? "Working…" : "Add to queue"}
+            {busy ? "Working…" : "Submit for approval"}
           </button>
         </div>
       </form>

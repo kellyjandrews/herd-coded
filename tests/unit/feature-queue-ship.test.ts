@@ -35,7 +35,13 @@ globalThis.fetch = async (url, init = {}) => {
 };`,
   );
   const output = execFileSync(process.execPath, ["--import", stub, script, "ship"], {
-    env: { ...process.env, GH_TOKEN: "test", REPO: "o/app", ...env },
+    env: {
+      ...process.env,
+      GH_TOKEN: "test",
+      REPO: "o/app",
+      SHIP_WAIT_MINUTES: "0",
+      ...env,
+    },
     encoding: "utf8",
   });
   return output
@@ -47,6 +53,23 @@ globalThis.fetch = async (url, init = {}) => {
 const finished = [{ event: "copilot_work_started" }, { event: "copilot_work_finished" }];
 
 describe("feature queue ship", () => {
+  it("ignores unfinished CI runs started by Copilot and dispatches its own", () => {
+    const calls = ship({
+      "/repos/o/app/pulls": [{ ...pr, draft: false }],
+      "/repos/o/app/issues/2/timeline": finished,
+      "/repos/o/app/actions/workflows/ci.yml/runs": {
+        workflow_runs: [
+          {
+            status: "in_progress",
+            conclusion: null,
+            actor: { login: "Copilot" },
+          },
+        ],
+      },
+    });
+    expect(calls).toEqual(["POST /repos/o/app/actions/workflows/ci.yml/dispatches"]);
+  });
+
   it("marks a finished draft ready and dispatches CI when only gated runs exist", () => {
     const calls = ship({
       "/repos/o/app/pulls": [pr],

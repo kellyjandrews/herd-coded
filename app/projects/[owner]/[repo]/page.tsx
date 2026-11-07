@@ -65,7 +65,7 @@ export default async function ProjectPage({
             </section>
             <ProductionCard production={activity.production} />
             <QueuePanel repository={activity.project.repository} queue={activity.queue} />
-            <FeatureTable features={activity.features} />
+            <FeatureTable repository={activity.project.repository} features={activity.features} />
           </>
         ) : (
           <div className="notice notice-error" role="alert">

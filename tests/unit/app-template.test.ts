@@ -44,10 +44,11 @@ describe("generated app template", () => {
     );
   });
 
-  it("ships finished Copilot PRs without checking out PR code", () => {
+  it("ships finished Copilot PRs from ungated triggers without checking out PR code", () => {
     const workflow = appTemplateFiles[".github/workflows/feature-queue.yml"] ?? "";
-    expect(workflow).toContain("pull_request_target:");
-    expect(workflow).toContain("workflows: [CI]");
+    expect(workflow).not.toContain("pull_request_target");
+    expect(workflow).not.toContain("workflow_run");
+    expect(workflow).toContain("types: [opened, labeled, closed, assigned]");
     expect(workflow).toContain("feature-queue.mjs ship");
     expect(workflow).not.toContain("github.event.pull_request.head");
     expect(appTemplateFiles[".github/workflows/ci.yml"]).toContain("workflow_dispatch:");

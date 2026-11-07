@@ -73,7 +73,7 @@ function seed(): MockStore {
     },
     paused: false,
     queueEnabled: true,
-    nextNumber: 6,
+    nextNumber: 7,
     features: [
       {
         number: 1,
@@ -136,6 +136,14 @@ function seed(): MockStore {
         createdAt: hoursAgo(5),
         closed: false,
         queued: true,
+        assigned: false,
+      },
+      {
+        number: 6,
+        title: "Recipe ratings",
+        createdAt: hoursAgo(1),
+        closed: false,
+        queued: false,
         assigned: false,
       },
     ],
@@ -275,20 +283,39 @@ export function mockProduction(repository: string): ProductionStatus | undefined
 
 export function mockQueue(repository: string): QueueStatus {
   const { project, features, paused, queueEnabled } = repoFor(repository);
+  const issueUrl = (number: number) => `${project.repositoryUrl}/issues/${number}`;
   return {
     enabled: queueEnabled,
     paused,
+    pending: features
+      .filter(isPending)
+      .sort((a, b) => a.number - b.number)
+      .map((feature) => ({
+        number: feature.number,
+        title: feature.title,
+        url: issueUrl(feature.number),
+      })),
     items: features
       .filter((feature) => feature.queued && !feature.closed && feature.pr?.state !== "MERGED")
       .sort((a, b) => a.number - b.number)
       .map((feature, index) => ({
         number: feature.number,
         title: feature.title,
-        url: `${project.repositoryUrl}/issues/${feature.number}`,
+        url: issueUrl(feature.number),
         position: index + 1,
         assignedToCopilot: feature.assigned,
       })),
   };
+}
+
+function isPending(feature: MockFeature): boolean {
+  return !feature.closed && !feature.queued && !feature.assigned && !feature.pr;
+}
+
+function pendingFeature(repo: MockRepo, number: number): MockFeature {
+  const feature = repo.features.find((item) => item.number === number);
+  if (!feature || !isPending(feature)) throw new Error(`Issue #${number} isn't awaiting approval.`);
+  return feature;
 }
 
 function advanceQueue(repo: MockRepo): void {
@@ -299,7 +326,7 @@ function advanceQueue(repo: MockRepo): void {
   if (open.length && !open.some((feature) => feature.assigned)) open[0].assigned = true;
 }
 
-export function mockQueueFeature(repository: string, titles: string[]) {
+export function mockSubmitFeatures(repository: string, titles: string[]) {
   const repo = repoFor(repository);
   const created = titles.map((title) => {
     const feature: MockFeature = {
@@ -307,20 +334,41 @@ export function mockQueueFeature(repository: string, titles: string[]) {
       title,
       createdAt: hoursAgo(0),
       closed: false,
-      queued: true,
+      queued: false,
       assigned: false,
     };
     repo.features.push(feature);
     return feature;
   });
-  advanceQueue(repo);
-  const queue = mockQueue(repository);
   const first = created[0];
   return {
     number: first?.number ?? 0,
     url: `${repo.project.repositoryUrl}/issues/${first?.number ?? ""}`,
-    position: queue.items.find((item) => item.number === first?.number)?.position,
   };
+}
+
+export function mockApproveFeatures(repository: string, numbers: number[]): void {
+  const repo = repoFor(repository);
+  const features = numbers.map((number) => pendingFeature(repo, number));
+  for (const feature of features) feature.queued = true;
+  advanceQueue(repo);
+}
+
+export function mockRejectFeature(repository: string, number: number): void {
+  pendingFeature(repoFor(repository), number).closed = true;
+}
+
+export function mockMergePullRequest(repository: string, number: number): boolean {
+  const repo = repoFor(repository);
+  const feature = repo.features.find((item) => item.pr?.number === number);
+  const pr = feature?.pr;
+  if (!feature || pr?.state !== "OPEN") throw new Error(`PR #${number} isn't open.`);
+  pr.isDraft = false;
+  if (pr.checks !== "passing") return false;
+  pr.state = "MERGED";
+  feature.closed = true;
+  advanceQueue(repo);
+  return true;
 }
 
 export function mockSetPaused(repository: string, paused: boolean): void {
